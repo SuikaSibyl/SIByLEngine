@@ -112,7 +112,10 @@ class SETensor:
     return self.prim_se
   def grad(self) -> core.rhi.Buffer:
     return self.grad_se
-
+  def get_binding_resource(self) -> core.rhi.BindingResource:
+    return core.rhi.BindingResource(core.rhi.BufferBinding(self.prim(), 0, self.prim().size()))
+  def get_binding_resource_grad(self) -> core.rhi.BindingResource:
+    return core.rhi.BindingResource(core.rhi.BufferBinding(self.grad(), 0, self.grad().size()))
 
 class SEApplication:
   def __init__(self):

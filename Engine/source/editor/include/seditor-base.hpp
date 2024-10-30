@@ -14,6 +14,7 @@ struct SIByL_API EditorBase {
   static auto onUpdate() noexcept -> void;
   static auto finalize() noexcept -> void;
   static auto bindInput(se::input* input) noexcept -> void;
+  static auto fetchInput() noexcept -> se::input*;
   static auto bindTimer(se::timer* timer) noexcept -> void;
   static auto bindPipeline(se::rdg::Pipeline* pipeline) noexcept -> void;
   static auto bindScene(se::gfx::SceneHandle scene) noexcept -> void;

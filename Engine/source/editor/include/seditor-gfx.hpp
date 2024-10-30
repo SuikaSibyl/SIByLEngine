@@ -88,6 +88,11 @@ struct SIByL_API ViewportWidget : public Widget {
   auto addCustomDrawFn(std::function<void()>& fn) noexcept -> void;
   auto claerCustomDrawFn() noexcept -> void;
 
+  auto getWindowPosition() noexcept -> vec2;
+  auto getMousePosition() noexcept -> vec2;
+  auto isWindowHovered() noexcept -> bool;
+  auto isWindowFocused() noexcept -> bool;
+
   /** draw gui*/
   virtual auto onDrawGui() noexcept -> void override;
   int camera_index = 0;

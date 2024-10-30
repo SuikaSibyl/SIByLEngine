@@ -40,7 +40,11 @@ std::unique_ptr<se::window> window = se::window::create(se::window::WindowOption
  //std::string path = "D:/Art/Scenes/veach-mis-mitsuba/scene_v3.xml";
  //std::string path = "P:/GitProjects/lajolla_public/scenes/volpath_test/volpath_test_buddha.xml";
  //std::string path = "D:/Art/Scenes/pbrt-v4-volumes/scenes/ground_explosion/ground_explosion.pbrt";
- std::string path = "D:/Art/Scenes/pbrt-v4-volumes/scenes/teapot_cloud/teapot_cloud.pbrt";
+ //std::string path = "D:/Art/Scenes/pbrt-v4-volumes/scenes/ground_explosion/ground_explosion.pbrt";
+ //std::string path = "D:/Art/Scenes/living-room-2/scene_v3.xml";
+ //std::string path = "P:/GitProjects/lajolla_public/scenes/volpath_test/hetvol.xml";
+ std::string path = "D:/Art/Scenes/pbrt-v4-volumes/scenes/rainbow_box/rainbow_box.pbrt";
+
  //std::string path = "P:/GitProjects/lajolla_public/scenes/volpath_test/volpath_test2.gltf";
  //auto scene = se::gfx::GFXContext::load_scene_xml(path);
  auto scene = se::gfx::GFXContext::load_scene_pbrt(path);

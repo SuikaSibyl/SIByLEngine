@@ -94,7 +94,7 @@ struct MeshLoaderConfig {
   bool deduplication = false;
 };
 
-MeshLoaderConfig defaultMeshLoadConfig = { defaultMeshDataLayout, true, true, false, true};
+MeshLoaderConfig defaultMeshLoadConfig = { defaultMeshDataLayout, true, true, false, false };
 
 Scene::Scene() {
   gpuScene.position_buffer = GFXContext::load_buffer_empty();
@@ -191,8 +191,8 @@ auto Scene::serialize(std::string const& path) noexcept -> void {
   tinygltf::Model model = serialize();
   tinygltf::TinyGLTF gltf;
   gltf.WriteGltfSceneToFile(&model, path,
-    true, // embedImages
-    true, // embedBuffers
+    false, // embedImages
+    false, // embedBuffers
     true, // pretty print
     false); // write binary
 }
@@ -307,6 +307,18 @@ auto Scene::serialize() noexcept -> tinygltf::Model {
     return material_id;
   };
 
+  std::unordered_map<RUID, std::pair<MediumHandle, int32_t>> mediums_map;
+  auto add_medium = [&](MediumHandle medium) -> int {
+    if (!medium.get()) return -1;
+    auto iter = mediums_map.find(medium.ruid);
+    if (iter != mediums_map.end()) {
+      return iter->second.second;
+    }
+    int medium_id = mediums_map.size();
+    mediums_map[medium.ruid] = { medium, medium_id };
+    return medium_id;
+  };
+
   // store index buffer
   auto mesh_view = registry.view<MeshRenderer>();
   for (auto entity : mesh_view) {
@@ -386,6 +398,12 @@ auto Scene::serialize() noexcept -> tinygltf::Model {
       }
       gltf_primitive.mode = TINYGLTF_MODE_TRIANGLES;
       gltf_primitive.material = add_material(primitive.material.get());
+
+      tinygltf::Value::Object primitive_extra;
+      primitive_extra["exterior"] = tinygltf::Value(add_medium(primitive.exterior));
+      primitive_extra["interior"] = tinygltf::Value(add_medium(primitive.interior));
+      gltf_primitive.extras = tinygltf::Value(primitive_extra);
+
       gltf_mesh.primitives.emplace_back(gltf_primitive);
     }
     m.nodes[node_id].mesh = mesh_id;
@@ -408,6 +426,96 @@ auto Scene::serialize() noexcept -> tinygltf::Model {
     m.nodes[node_id].camera = camera_id;
   }
 
+  tinygltf::Value::Object model_extra;
+
+
+  // serialize the medium map
+  if (mediums_map.size() > 0) {
+    tinygltf::Value::Object medium_extra;
+    int medium_buffer_index = -1;
+    std::vector<unsigned char> medium_buffer;
+    auto allocate_buffer = [&](int size) -> std::pair<float*, int> {
+      int offset = medium_buffer.size();
+      medium_buffer.resize(offset + size * sizeof(float));
+      return { (float*)&medium_buffer[offset] , offset / sizeof(float) };
+    };
+
+    tinygltf::Value::Array mediums(mediums_map.size());
+    for (auto& pair : mediums_map) {
+      int index = pair.second.second;
+      MediumHandle medium = pair.second.first;
+      tinygltf::Value::Object media_extra;
+      media_extra["type"] = tinygltf::Value(int(medium->packet.type));
+      if (medium->packet.type == Medium::MediumType::RGBGridMedium) {
+        media_extra["scale"] = tinygltf::Value(medium->packet.scale);
+        media_extra["bound_min_x"] = tinygltf::Value(medium->packet.bound_min.x);
+        media_extra["bound_min_y"] = tinygltf::Value(medium->packet.bound_min.y);
+        media_extra["bound_min_z"] = tinygltf::Value(medium->packet.bound_min.z);
+        media_extra["bound_max_x"] = tinygltf::Value(medium->packet.bound_max.x);
+        media_extra["bound_max_y"] = tinygltf::Value(medium->packet.bound_max.y);
+        media_extra["bound_max_z"] = tinygltf::Value(medium->packet.bound_max.z);
+        media_extra["grid_nx"] = tinygltf::Value(medium->packet.density_nxyz.x);
+        media_extra["grid_ny"] = tinygltf::Value(medium->packet.density_nxyz.y);
+        media_extra["grid_nz"] = tinygltf::Value(medium->packet.density_nxyz.z);
+        media_extra["aniso_x"] = tinygltf::Value(medium->packet.aniso.x);
+        media_extra["aniso_y"] = tinygltf::Value(medium->packet.aniso.y);
+        media_extra["aniso_z"] = tinygltf::Value(medium->packet.aniso.z);
+
+        media_extra["o2w"] = tinygltf::Value(tinygltf::Value::Array{
+          tinygltf::Value(medium->packet.geometryTransform.matrix[0][0]),
+          tinygltf::Value(medium->packet.geometryTransform.matrix[0][1]),
+          tinygltf::Value(medium->packet.geometryTransform.matrix[0][2]),
+          tinygltf::Value(medium->packet.geometryTransform.matrix[0][3]),
+          tinygltf::Value(medium->packet.geometryTransform.matrix[1][0]),
+          tinygltf::Value(medium->packet.geometryTransform.matrix[1][1]),
+          tinygltf::Value(medium->packet.geometryTransform.matrix[1][2]),
+          tinygltf::Value(medium->packet.geometryTransform.matrix[1][3]),
+          tinygltf::Value(medium->packet.geometryTransform.matrix[2][0]),
+          tinygltf::Value(medium->packet.geometryTransform.matrix[2][1]),
+          tinygltf::Value(medium->packet.geometryTransform.matrix[2][2]),
+          tinygltf::Value(medium->packet.geometryTransform.matrix[2][3]),
+        });
+        media_extra["w2o"] = tinygltf::Value(tinygltf::Value::Array{
+          tinygltf::Value(medium->packet.geometryTransformInverse.matrix[0][0]),
+          tinygltf::Value(medium->packet.geometryTransformInverse.matrix[0][1]),
+          tinygltf::Value(medium->packet.geometryTransformInverse.matrix[0][2]),
+          tinygltf::Value(medium->packet.geometryTransformInverse.matrix[0][3]),
+          tinygltf::Value(medium->packet.geometryTransformInverse.matrix[1][0]),
+          tinygltf::Value(medium->packet.geometryTransformInverse.matrix[1][1]),
+          tinygltf::Value(medium->packet.geometryTransformInverse.matrix[1][2]),
+          tinygltf::Value(medium->packet.geometryTransformInverse.matrix[1][3]),
+          tinygltf::Value(medium->packet.geometryTransformInverse.matrix[2][0]),
+          tinygltf::Value(medium->packet.geometryTransformInverse.matrix[2][1]),
+          tinygltf::Value(medium->packet.geometryTransformInverse.matrix[2][2]),
+          tinygltf::Value(medium->packet.geometryTransformInverse.matrix[2][3]),
+          });
+        //medium_handle->packet.geometryTransform
+        int sigma_a_size = int(medium->density->values.size());
+        auto [sigma_a_tgt, offset] = allocate_buffer(sigma_a_size);
+        memcpy(sigma_a_tgt, medium->density->values.data(), sizeof(float)* sigma_a_size);
+        media_extra["sigma_a_size"] = tinygltf::Value(sigma_a_size);
+        media_extra["sigma_a_offset"] = tinygltf::Value(offset);
+        int sigma_s_size = int(medium->temperatureGrid->values.size());
+        auto [sigma_s_tgt, offset_s] = allocate_buffer(sigma_s_size);
+        memcpy(sigma_s_tgt, medium->temperatureGrid->values.data(), sizeof(float)* sigma_s_size);
+        media_extra["sigma_s_offset"] = tinygltf::Value(offset_s);
+        media_extra["sigma_s_size"] = tinygltf::Value(sigma_s_size);
+      }
+      mediums[index] = tinygltf::Value(media_extra);
+    }
+    // also upload buffer
+    if (medium_buffer.size() > 0) {
+      medium_buffer_index = m.buffers.size();
+      m.buffers.emplace_back();
+      m.buffers[medium_buffer_index].data = medium_buffer;
+    }
+
+    medium_extra["buffer_id"] = tinygltf::Value(medium_buffer_index);
+    medium_extra["mediums"] = tinygltf::Value(mediums);
+    model_extra["medium"] = tinygltf::Value(medium_extra);
+  }
+
+  m.extras = tinygltf::Value(model_extra);
   m.scenes.emplace_back(scene);
   return m;
 }
@@ -483,6 +591,10 @@ auto Scene::useEditorCameraView(Transform* transfrom, Camera* camera) noexcept -
 
 auto Scene::getEditorActiveCameraIndex() noexcept -> int {
   return editorInfo.active_camera_index;
+}
+
+auto Scene::getDefaultResolution() noexcept -> ivec2 {
+  return resolution;
 }
 
 auto Scene::updateGPUScene() noexcept -> void {
@@ -617,7 +729,24 @@ auto Scene::updateGPUScene() noexcept -> void {
               packet.floatvec_2 = { bound.pMax, 0 };
             }
             else if (type == 2) {
+              packet.light_type = int(Light::LightType::RECTANGLE);
+              packet.uintscalar_0 = 0;
+              packet.uintscalar_1 = geometry_index;
 
+              vec3 x0 = mul(mat4(geometry.geometryTransform), vec4{ 1, 1, 0, 1 }).xyz();
+              vec3 x1 = mul(mat4(geometry.geometryTransform), vec4{ 1, -1, 0, 1 }).xyz();
+              vec3 x2 = mul(mat4(geometry.geometryTransform), vec4{ -1, 1, 0, 1 }).xyz();
+              vec3 x3 = mul(mat4(geometry.geometryTransform), vec4{ -1, -1, 0, 1 }).xyz();
+              bounds3 bound;
+              bound = unionPoint(bound, point3(x0));
+              bound = unionPoint(bound, point3(x1));
+              bound = unionPoint(bound, point3(x2));
+              bound = unionPoint(bound, point3(x3));
+              float area = length(x0 - x2) * length(x1 - x0);
+              vec3 power = yuv * k_pi * area;
+              packet.floatvec_0 = { power , 0 };
+              packet.floatvec_1 = { bound.pMin, 0 };
+              packet.floatvec_2 = { bound.pMax, 0 };
             }
             else if (type == 3) {
 
@@ -989,6 +1118,21 @@ auto Scene::GPUScene::try_fetch_medium_index(MediumHandle& handle) noexcept -> i
       grid_storage_buffer->host_stamp++;
     }
 
+    // upload temperature grid
+    if (handle->temperatureGrid.has_value()) {
+      handle->packet.temperature_nxyz = ivec3{ handle->temperatureGrid->nx, handle->temperatureGrid->ny, handle->temperatureGrid->nz };
+      int size = handle->temperatureGrid->values.size();
+      int offset = grid_storage_buffer->host.size() / sizeof(float);
+      offset = int((offset + 63) / 64) * 64;
+      handle->packet.temperature_offset = offset;
+      handle->packet.temperature_bound_min = handle->temperatureGrid->bounds.pMin;
+      handle->packet.temperature_bound_max = handle->temperatureGrid->bounds.pMax;
+      grid_storage_buffer->host.resize(sizeof(float) * (offset + size));
+      memcpy(&(grid_storage_buffer->host[offset * sizeof(float)]),
+        handle->temperatureGrid->values.data(), size * sizeof(float));
+      grid_storage_buffer->host_stamp++;
+    }
+
     // upload majorant grid
     if (handle->majorantGrid.has_value()) {
       handle->packet.majorant_nxyz = handle->majorantGrid->res;
@@ -1333,6 +1477,7 @@ struct glTFLoaderEnv {
   std::unordered_map<tinygltf::Material const*, MaterialHandle> materials;
   std::vector<std::vector<se::mat4>> skinning_matrices;
   std::vector<std::vector<int>> skinning_indices;
+  std::vector<MediumHandle> mediums;
   //std::vector<std::vector<GFX::AnimationComponent::AnimationSampler>> anim_samplers;
   //std::vector<std::unordered_map<uint32_t, std::vector<GFX::AnimationComponent::AnimationChannel>>> anim_channels;
   std::unordered_map<int, Node> node2go;
@@ -1868,6 +2013,16 @@ static inline auto loadGLTFMesh(tinygltf::Mesh const& gltfmesh,
       auto const& gltf_material = model->materials[meshPrimitive.material];
       sePrimitive.material = loadGLTFMaterial(&gltf_material, model, env, scene, defaultMeshLoadConfig);
     }
+    tinygltf::Value primitive_extra = meshPrimitive.extras;
+    if (primitive_extra.Has("exterior")) {
+      int exterior_index = primitive_extra.Get("exterior").GetNumberAsInt();
+      if (exterior_index >= 0) sePrimitive.exterior = env.mediums[exterior_index];
+    }
+    if (primitive_extra.Has("interior")) {
+      int interior_index = primitive_extra.Get("interior").GetNumberAsInt();
+      if (interior_index >= 0) sePrimitive.interior = env.mediums[interior_index];
+    }
+
     mesh.get()->primitives.emplace_back(std::move(sePrimitive));
     // todo:: add material
     submesh_index_offset = indexBuffer_uint.size();
@@ -2069,7 +2224,15 @@ auto loadXMLMaterial(TPM_NAMESPACE::Object const* node,
   mat->name = name;
 
   if (mat_node->pluginType() == "roughplastic") {
-    mat->bxdf = 0;
+    mat->bxdf = 2;
+    float eta = mat_node->property("int_ior").getNumber(1.5f);
+    float alpha = mat_node->property("alpha").getNumber(1.f);
+    mat->roughnessFactor = alpha;
+
+    TPM_NAMESPACE::Color reflectance = mat_node->property("diffuse_reflectance").getColor({ 1.f, 1.f,1.f });
+    mat->baseOrDiffuseColor = { reflectance.r, reflectance.g, reflectance.b };
+    TPM_NAMESPACE::Color spec_reflectance = mat_node->property("specular_reflectance").getColor({ 1.f, 1.f,1.f });
+    mat->floatvec_2 = { spec_reflectance.r, spec_reflectance.g, spec_reflectance.b, eta };
   } else if (mat_node->pluginType() == "diffuse") {
     mat->bxdf = 0;
     if (mat_node->property("reflectance").type() == TPM_NAMESPACE::PT_COLOR) {
@@ -2163,9 +2326,24 @@ auto loadXMLMesh(TPM_NAMESPACE::Object const* node, xmlLoaderEnv* env,
           primitive.material = mat.value();
         }
       }
-      auto& light_component = scene.registry.emplace<Light>(gfxNode.entity);
-      light_component.primitives.push_back(0);
-      light_component.type = Light::LightType::MESH_PRIMITIVE;
+
+      if (radiance.r > 0 || radiance.g > 0 || radiance.b > 0) {
+        auto& light_component = scene.registry.emplace<Light>(gfxNode.entity);
+        light_component.primitives.push_back(0);
+        light_component.type = Light::LightType::MESH_PRIMITIVE;
+
+        if (!mat.has_value()) {
+          mat = GFXContext::load_material_empty();
+          mat.value()->bxdf = 0;
+          mat.value()->emissiveColor = radiance;
+          for (auto& primitive : mesh_renderer.mesh->primitives) {
+              primitive.material = mat.value();
+            }
+          for (auto& primitive : mesh_renderer.mesh->custom_primitives) {
+            primitive.material = mat.value();
+          }
+        }
+      }
     }
 
     for (auto& subnode : node->namedChildren()) {
@@ -2407,16 +2585,135 @@ auto nanovdb_float_grid_loader(nanovdb::GridHandle<nanovdb::HostBuffer>& grid) -
 
 auto nanovdb_loader(std::string file_name, MediumHandle& medium) {
   auto list = nanovdb::io::readGridMetaData(file_name);
+  bounds3 bound;
   for (auto& m : list) {
     std::string grid_name = m.gridName;
     if (grid_name == "density") {
       nanovdb::GridHandle<nanovdb::HostBuffer> handle = nanovdb::io::readGrid(file_name, m.gridName);
       medium->density = nanovdb_float_grid_loader(handle);
+      bound = unionBounds(bound, medium->density.value().bounds);
     }
     if (grid_name == "temperature") {
       nanovdb::GridHandle<nanovdb::HostBuffer> handle = nanovdb::io::readGrid(file_name, m.gridName);
       medium->temperatureGrid = nanovdb_float_grid_loader(handle);
+      bound = unionBounds(bound, medium->temperatureGrid.value().bounds);
     }
+  }
+  medium->packet.bound_min = bound.pMin;
+  medium->packet.bound_max = bound.pMax;
+}
+
+auto mitsuba_volume_loader(std::string file_name) -> Medium::SampledGrid {
+  // code from https://github.com/mitsuba-renderer/mitsuba/blob/master/src/volume/gridvolume.cpp#L217
+  enum EVolumeType {
+    EFloat32 = 1,
+    EFloat16 = 2,
+    EUInt8 = 3,
+    EQuantizedDirections = 4
+  };
+
+  std::fstream fs(file_name.c_str(), std::fstream::in | std::fstream::binary);
+  char header[3];
+  fs.read(header, 3);
+  if (header[0] != 'V' || header[1] != 'O' || header[2] != 'L') {
+    root::print::error(std::string("Error loading volume from a file (incorrect header). Filename:") + file_name);
+  }
+  uint8_t version;
+  fs.read((char*)&version, 1);
+  if (version != 3) {
+    root::print::error(std::string("Error loading volume from a file (incorrect header). Filename:") + file_name);
+  }
+
+  int type;
+  fs.read((char*)&type, sizeof(int));
+  if (type != EFloat32) {
+    root::print::error(std::string("Unsupported volume format (only support Float32). Filename:") + file_name);
+  }
+
+  int xres, yres, zres;
+  fs.read((char*)&xres, sizeof(int));
+  fs.read((char*)&yres, sizeof(int));
+  fs.read((char*)&zres, sizeof(int));
+
+  int channels;
+  fs.read((char*)&channels, sizeof(int));
+  if (channels != 1 && channels != 3) {
+    root::print::error(std::string("Unsupported volume format (wrong number of channels). Filename:") + file_name);
+  }
+
+  if (type != EFloat32) {
+    root::print::error(std::string("Unsupported volume format (not Float32). Filename:") + file_name);
+  }
+
+  float xmin, ymin, zmin;
+  float xmax, ymax, zmax;
+  fs.read((char*)&xmin, sizeof(float));
+  fs.read((char*)&ymin, sizeof(float));
+  fs.read((char*)&zmin, sizeof(float));
+  fs.read((char*)&xmax, sizeof(float));
+  fs.read((char*)&ymax, sizeof(float));
+  fs.read((char*)&zmax, sizeof(float));
+
+  std::vector<float> raw_data(xres * yres * zres * channels, 0.f);
+  fs.read((char*)raw_data.data(), sizeof(float) * xres * yres * zres * channels);
+
+  if (channels == 1) {
+    std::vector<float> data(xres * yres * zres);
+    float max_data = 0;
+    for (int i = 0; i < xres * yres * zres; i++) {
+      data[i] = raw_data[channels * i];
+      max_data = std::max(max_data, data[i]);
+    }
+    return Medium::SampledGrid{
+      xres, yres, zres,
+      std::move(data),
+      bounds3{
+        vec3{ xmin, ymin, zmin }, // pmin
+        vec3{ xmax, ymax, zmax }, // pmax
+      }, 1
+    };
+  }
+  else {
+    assert(channels == 3);
+    std::vector<float> data(xres * yres * zres * 3);
+    for (int i = 0; i < xres * yres * zres; i++) {
+      if (channels == 1) {
+        float v = raw_data[i];
+        data[i * 3 + 0] = v;
+        data[i * 3 + 1] = v;
+        data[i * 3 + 2] = v;
+      }
+      else {
+        data[i * 3 + 0] = raw_data[3 * i + 0];
+        data[i * 3 + 1] = raw_data[3 * i + 1];
+        data[i * 3 + 2] = raw_data[3 * i + 2];
+      }
+    }
+    return Medium::SampledGrid{
+      xres, yres, zres,
+      std::move(data),
+      bounds3{
+        vec3{ xmin, ymin, zmin }, // pmin
+        vec3{ xmax, ymax, zmax }, // pmax
+      }, 3
+    };
+  }
+}
+
+void mitsuba_parse_volume_spectrum(TPM_NAMESPACE::Object* node, MediumHandle& medium) {
+  float a = 1.f;
+  std::string type = node->pluginType();
+  if (type == "constvolume") {
+    TPM_NAMESPACE::Color rgb = node->property("value").getColor();
+    medium->packet.sigmaS = { rgb.r, rgb.g, rgb.b };
+    medium->packet.sigmaA = { 1.f - rgb.r, 1.f - rgb.g, 1.f - rgb.b };
+  }
+  else if (type == "gridvolume") {
+    std::string filename = node->property("filename").getString();
+    auto a = mitsuba_volume_loader(filename);
+  }
+  else {
+    root::print::error(std::string("Unknown volume type:") + type);
   }
 }
 
@@ -2437,6 +2734,111 @@ SceneLoader::result_type SceneLoader::operator()(SceneLoader::from_gltf_tag, std
   // parse the gltf file to SE scene
   // -------------------------------------------------------------
   SceneLoader::result_type scene = std::make_shared<Scene>();
+  glTFLoaderEnv env;
+
+  // load medium if any
+  if (model.extras.Has("medium")) {
+    tinygltf::Value medium_extra = model.extras.Get("medium");
+    int buffer_index = medium_extra.Get("buffer_id").GetNumberAsInt();
+    tinygltf::Value medium_instances = medium_extra.Get("mediums");
+    env.mediums.resize(medium_instances.ArrayLen());
+    std::span<float> medium_buffer;
+    if (buffer_index >= 0) {
+      medium_buffer = std::span<float>{
+        (float*)model.buffers[buffer_index].data.data(),
+        model.buffers[buffer_index].data.size() / 4
+      };
+    }
+    for (int medium_index = 0; medium_index < medium_instances.ArrayLen(); ++medium_index) {
+      MediumHandle medium = GFXContext::load_medium_empty();
+      tinygltf::Value instance = medium_instances.Get(medium_index);
+      if (instance.Get("type").GetNumberAsInt() == 2) {
+        medium->packet.type = Medium::MediumType::RGBGridMedium;
+        medium->packet.aniso = {
+          (float)instance.Get("aniso_x").GetNumberAsDouble(),
+          (float)instance.Get("aniso_y").GetNumberAsDouble(),
+          (float)instance.Get("aniso_z").GetNumberAsDouble(),
+        };
+        medium->packet.bound_min = {
+          (float)instance.Get("bound_min_x").GetNumberAsDouble(),
+          (float)instance.Get("bound_min_y").GetNumberAsDouble(),
+          (float)instance.Get("bound_min_z").GetNumberAsDouble(),
+        };
+        medium->packet.bound_max = {
+          (float)instance.Get("bound_max_x").GetNumberAsDouble(),
+          (float)instance.Get("bound_max_y").GetNumberAsDouble(),
+          (float)instance.Get("bound_max_z").GetNumberAsDouble(),
+        };
+        medium->packet.scale = (float)instance.Get("scale").GetNumberAsDouble();
+        ivec3 const grid_nxyz = {
+          (float)instance.Get("grid_nx").GetNumberAsInt(),
+          (float)instance.Get("grid_ny").GetNumberAsInt(),
+          (float)instance.Get("grid_nz").GetNumberAsInt(),
+        };
+        tinygltf::Value o2w = instance.Get("o2w");
+        medium->packet.geometryTransform.matrix[0][0] = (float)o2w.Get(0).GetNumberAsDouble();
+        medium->packet.geometryTransform.matrix[0][1] = (float)o2w.Get(1).GetNumberAsDouble();
+        medium->packet.geometryTransform.matrix[0][2] = (float)o2w.Get(2).GetNumberAsDouble();
+        medium->packet.geometryTransform.matrix[0][3] = (float)o2w.Get(3).GetNumberAsDouble();
+        medium->packet.geometryTransform.matrix[1][0] = (float)o2w.Get(4).GetNumberAsDouble();
+        medium->packet.geometryTransform.matrix[1][1] = (float)o2w.Get(5).GetNumberAsDouble();
+        medium->packet.geometryTransform.matrix[1][2] = (float)o2w.Get(6).GetNumberAsDouble();
+        medium->packet.geometryTransform.matrix[1][3] = (float)o2w.Get(7).GetNumberAsDouble();
+        medium->packet.geometryTransform.matrix[2][0] = (float)o2w.Get(8).GetNumberAsDouble();
+        medium->packet.geometryTransform.matrix[2][1] = (float)o2w.Get(9).GetNumberAsDouble();
+        medium->packet.geometryTransform.matrix[2][2] = (float)o2w.Get(10).GetNumberAsDouble();
+        medium->packet.geometryTransform.matrix[2][3] = (float)o2w.Get(11).GetNumberAsDouble();
+        tinygltf::Value w2o = instance.Get("w2o");
+        medium->packet.geometryTransformInverse.matrix[0][0] = (float)w2o.Get(0).GetNumberAsDouble();
+        medium->packet.geometryTransformInverse.matrix[0][1] = (float)w2o.Get(1).GetNumberAsDouble();
+        medium->packet.geometryTransformInverse.matrix[0][2] = (float)w2o.Get(2).GetNumberAsDouble();
+        medium->packet.geometryTransformInverse.matrix[0][3] = (float)w2o.Get(3).GetNumberAsDouble();
+        medium->packet.geometryTransformInverse.matrix[1][0] = (float)w2o.Get(4).GetNumberAsDouble();
+        medium->packet.geometryTransformInverse.matrix[1][1] = (float)w2o.Get(5).GetNumberAsDouble();
+        medium->packet.geometryTransformInverse.matrix[1][2] = (float)w2o.Get(6).GetNumberAsDouble();
+        medium->packet.geometryTransformInverse.matrix[1][3] = (float)w2o.Get(7).GetNumberAsDouble();
+        medium->packet.geometryTransformInverse.matrix[2][0] = (float)w2o.Get(8).GetNumberAsDouble();
+        medium->packet.geometryTransformInverse.matrix[2][1] = (float)w2o.Get(9).GetNumberAsDouble();
+        medium->packet.geometryTransformInverse.matrix[2][2] = (float)w2o.Get(10).GetNumberAsDouble();
+        medium->packet.geometryTransformInverse.matrix[2][3] = (float)w2o.Get(11).GetNumberAsDouble();
+
+        bounds3 bounds = { medium->packet.bound_min,medium->packet.bound_max };
+
+        int sigma_a_offset = instance.Get("sigma_a_offset").GetNumberAsInt();
+        int sigma_a_size = instance.Get("sigma_a_size").GetNumberAsInt();
+        medium->density = Medium::SampledGrid{
+          grid_nxyz.x, grid_nxyz.y, grid_nxyz.z,
+          std::vector<float>{medium_buffer.begin() + sigma_a_offset, medium_buffer.begin() + sigma_a_offset + sigma_a_size},
+          bounds, 3
+        };
+
+        int sigma_s_offset = instance.Get("sigma_s_offset").GetNumberAsInt();
+        int sigma_s_size = instance.Get("sigma_s_size").GetNumberAsInt();
+        medium->temperatureGrid = Medium::SampledGrid{
+          grid_nxyz.x, grid_nxyz.y, grid_nxyz.z,
+          std::vector<float>{medium_buffer.begin() + sigma_s_offset, medium_buffer.begin() + sigma_s_offset + sigma_s_size},
+          bounds, 3
+        };
+
+        // create majorant grid
+        medium->majorantGrid = Medium::MajorantGrid();
+        medium->majorantGrid->res = ivec3(16, 16, 16);
+        medium->majorantGrid->bounds = { medium->packet.bound_min, medium->packet.bound_max };
+        medium->majorantGrid->voxels.resize(16 * 16 * 16);
+        // Initialize _majorantGrid_ for _GridMedium_
+        for (int z = 0; z < medium->majorantGrid->res.z; ++z)
+          for (int y = 0; y < medium->majorantGrid->res.y; ++y)
+            for (int x = 0; x < medium->majorantGrid->res.x; ++x) {
+              bounds3 bounds = medium->majorantGrid->voxel_bounds(x, y, z);
+              float maximum = (medium->density->max_value(bounds) + medium->temperatureGrid->max_value(bounds)) * medium->packet.scale;
+              medium->majorantGrid->set(x, y, z, maximum);
+            }
+      }
+
+      env.mediums[medium_index] = medium;
+    }
+  }
+
   // first, create the nodes
   std::vector<Node> nodes(model.nodes.size());
   for (size_t i = 0; i < model.nodes.size(); ++i) {
@@ -2468,7 +2870,6 @@ SceneLoader::result_type SceneLoader::operator()(SceneLoader::from_gltf_tag, std
   }
   std::filesystem::path filepath = path;
   std::string const directory = filepath.parent_path().string();
-  glTFLoaderEnv env;
   env.directory = directory;
 
   // load tag, transform, mesh
@@ -2515,11 +2916,13 @@ SceneLoader::result_type SceneLoader::operator()(SceneLoader::from_gltf_tag, std
 
       std::vector<int> emissive_primitives;
       for (int i = 0; i < mesh->primitives.size(); ++i) {
-        MaterialHandle& mat = mesh->primitives[i].material;
-        if (mat->emissiveColor.r > 0 ||
-            mat->emissiveColor.g > 0 ||
-            mat->emissiveColor.b > 0) {
-            emissive_primitives.push_back(i);
+        if (mesh->primitives[i].material.get()) {
+          MaterialHandle& mat = mesh->primitives[i].material;
+          if (mat->emissiveColor.r > 0 ||
+              mat->emissiveColor.g > 0 ||
+              mat->emissiveColor.b > 0) {
+              emissive_primitives.push_back(i);
+          }
         }
       }
       if (emissive_primitives.size() > 0) {
@@ -2605,6 +3008,7 @@ SceneLoader::result_type SceneLoader::operator()(SceneLoader::from_xml_tag, std:
           break;
       case TPM_NAMESPACE::OT_MEDIUM: {
         MediumHandle medium = GFXContext::load_medium_empty();
+        medium->packet.scale = obj->property("scale").getNumber(1.f);
         if (obj->pluginType() == "homogeneous") {
           medium->packet.bitfield = (uint32_t)Medium::MediumType::Homogeneous;
           TPM_NAMESPACE::Color sigma_a = obj->property("sigma_a").getColor();
@@ -2612,6 +3016,50 @@ SceneLoader::result_type SceneLoader::operator()(SceneLoader::from_xml_tag, std:
           medium->packet.sigmaA = { sigma_a.r, sigma_a.g, sigma_a.b };
           medium->packet.sigmaS = { sigma_s.r, sigma_s.g, sigma_s.b };
           medium->packet.scale = obj->property("scale").getNumber();
+        }
+        else if (obj->pluginType() == "heterogeneous") {
+          bounds3 bound;
+          for (auto child : obj->namedChildren()) {
+            std::string name = child.first;
+            if (name == "albedo") {
+              mitsuba_parse_volume_spectrum(child.second.get(), medium);
+            }
+            else if (name == "density") {
+              //mitsuba_parse_volume_spectrum(child.second.get(), medium);
+              auto* node = child.second.get();
+              std::string type = node->pluginType();
+              if (type == "constvolume") {
+                TPM_NAMESPACE::Color rgb = node->property("value").getColor();
+                medium->packet.sigmaS = { rgb.r, rgb.g, rgb.b };
+                medium->packet.sigmaA = { 1.f - rgb.r, 1.f - rgb.g, 1.f - rgb.b };
+              }
+              else if (type == "gridvolume") {
+                std::string filename = node->property("filename").getString();
+                medium->density = mitsuba_volume_loader(env.directory + "/" + filename);
+                bound = unionBounds(bound, medium->density->bounds);
+              }
+              else {
+                root::print::error(std::string("Unknown volume type:") + type);
+              }
+            }
+          }
+
+          medium->packet.type = Medium::MediumType::GridMedium;
+          medium->packet.bound_min = bound.pMin;
+          medium->packet.bound_max = bound.pMax;
+
+          // create majorant grid
+          medium->majorantGrid = Medium::MajorantGrid();
+          medium->majorantGrid->res = ivec3(16, 16, 16);
+          medium->majorantGrid->bounds = { medium->packet.bound_min, medium->packet.bound_max };
+          medium->majorantGrid->voxels.resize(16 * 16 * 16);
+          // Initialize _majorantGrid_ for _GridMedium_
+          for (int z = 0; z < medium->majorantGrid->res.z; ++z)
+            for (int y = 0; y < medium->majorantGrid->res.y; ++y)
+              for (int x = 0; x < medium->majorantGrid->res.x; ++x) {
+                bounds3 bounds = medium->majorantGrid->voxel_bounds(x, y, z);
+                medium->majorantGrid->set(x, y, z, medium->density->max_value(bounds));
+              }
         }
         env.mediums[obj] = medium;
         break;
@@ -2629,6 +3077,20 @@ SceneLoader::result_type SceneLoader::operator()(SceneLoader::from_xml_tag, std:
         camera.znear = 0.02f;
         camera.yfov = obj->property("fov").getNumber();
         camera.aspectRatio = 1.f;
+
+        for (auto& child : obj->anonymousChildren()) {
+          if (child->type() == TPM_NAMESPACE::OT_FILM) {
+            int width = child->property("width").getInteger();
+            int height = child->property("height").getInteger();
+            scene->resolution = { width,height };
+            camera.aspectRatio = width * 1. / height;
+            if (obj->property("fov_axis").getString() == "x") {
+              float tmp = width / std::tan(radians(camera.yfov) * 0.5);
+              camera.yfov = 2 * degrees(std::atan(height * 1. / tmp));
+              //camera.yfov
+            }
+          }
+        }
 
         auto& transformComponent = scene->registry.get<Transform>(node.entity);
         auto transform = obj->property("to_world").getTransform();
@@ -2895,6 +3357,14 @@ auto loadPbrtDefineddMesh(std::vector<tiny_pbrt_loader::Point3f> p,
   return mesh;
 }
 
+se::mat4 pbrt_mat_to_semat4x4(tiny_pbrt_loader::TransformData const& pbrt_trans) {
+  return se::mat4{
+  (float)pbrt_trans.m[0][0],  (float)pbrt_trans.m[0][1], (float)pbrt_trans.m[0][2], (float)pbrt_trans.m[0][3],
+  (float)pbrt_trans.m[1][0],  (float)pbrt_trans.m[1][1], (float)pbrt_trans.m[1][2], (float)pbrt_trans.m[1][3],
+  (float)pbrt_trans.m[2][0],  (float)pbrt_trans.m[2][1], (float)pbrt_trans.m[2][2], (float)pbrt_trans.m[2][3],
+  (float)pbrt_trans.m[3][0],  (float)pbrt_trans.m[3][1], (float)pbrt_trans.m[3][2], (float)pbrt_trans.m[3][3], };
+}
+
 void FillTransfromFromPBRT(tiny_pbrt_loader::TransformData const& pbrt_trans, Transform& transformComponent) {
   se::mat4 mat = {
   (float)pbrt_trans.m[0][0],  (float)pbrt_trans.m[0][1], (float)pbrt_trans.m[0][2], (float)pbrt_trans.m[0][3],
@@ -2929,12 +3399,22 @@ float Medium::SampledGrid::max_value(const bounds3& bounds) const {
                    min(ivec3(floor(ps[1])) + ivec3(1, 1, 1),
                        ivec3(nx - 1, ny - 1, nz - 1)) };
 
-  float maxValue = lookup(ivec3(pi[0]));
-  for (int z = pi[0].z; z <= pi[1].z; ++z)
-    for (int y = pi[0].y; y <= pi[1].y; ++y)
-      for (int x = pi[0].x; x <= pi[1].x; ++x)
-        maxValue = std::max(maxValue, lookup(ivec3(x, y, z)));
+  float maxValue;
+  if (grid_channel == 1) {
+    maxValue = lookup(ivec3(pi[0]));
+    for (int z = pi[0].z; z <= pi[1].z; ++z)
+      for (int y = pi[0].y; y <= pi[1].y; ++y)
+        for (int x = pi[0].x; x <= pi[1].x; ++x)
+          maxValue = std::max(maxValue, lookup(ivec3(x, y, z)));
+  }
+  else if (grid_channel == 3) {
+    maxValue = maxComponent(lookup3(ivec3(pi[0])));
+    for (int z = pi[0].z; z <= pi[1].z; ++z)
+      for (int y = pi[0].y; y <= pi[1].y; ++y)
+        for (int x = pi[0].x; x <= pi[1].x; ++x)
+          maxValue = std::max(maxValue, maxComponent(lookup3(ivec3(x, y, z))));
 
+  }
   return maxValue;
 }
 
@@ -2945,10 +3425,19 @@ float Medium::SampledGrid::lookup(const ivec3& p) const {
   return values[(p.z * ny + p.y) * nx + p.x];
 }
 
+vec3 Medium::SampledGrid::lookup3(const ivec3& p) const {
+  ibounds3 sampleBounds(ivec3(0, 0, 0), ivec3(nx, ny, nz));
+  return vec3{
+  values[((p.z * ny + p.y) * nx + p.x) * 3 + 0],
+  values[((p.z * ny + p.y) * nx + p.x) * 3 + 1],
+  values[((p.z * ny + p.y) * nx + p.x) * 3 + 2] };
+}
+
 SceneLoader::result_type SceneLoader::operator()(SceneLoader::from_pbrt_tag, std::string const& path) {
   SceneLoader::result_type scene = std::make_shared<Scene>();
   std::string fileContent = loadFileAsString(path);
-  std::unique_ptr<tiny_pbrt_loader::BasicScene> scene_pbrt = tiny_pbrt_loader::load_scene_from_string(fileContent);
+  std::string dir_path = path.substr(0, path.find_last_of("/") + 1);
+  std::unique_ptr<tiny_pbrt_loader::BasicScene> scene_pbrt = tiny_pbrt_loader::load_scene_from_string(fileContent, dir_path);
   std::string prefix = path.substr(0, path.find_last_of("/") + 1);
   // camera
   {
@@ -2957,8 +3446,9 @@ SceneLoader::result_type SceneLoader::operator()(SceneLoader::from_pbrt_tag, std
     Camera& cameraComponent = scene->registry.emplace<Camera>(camera_node.entity);
     //cameraComponent.yfov = scene_pbrt->camera.cameraFromWorld;
     FillTransfromFromPBRT(scene_pbrt->camera.cameraFromWorld, transformComponent);
-    se::Transform rotate = se::rotateY(180);
+    se::Transform rotate = se::rotateX(180);
     transformComponent.rotation = Quaternion(rotate.m) * transformComponent.rotation;
+    transformComponent.translation.y *= -1;
     cameraComponent.yfov = scene_pbrt->camera.dict.GetOneFloat("fov", 0.f);
     float b = 1.f;
   }
@@ -2995,7 +3485,7 @@ SceneLoader::result_type SceneLoader::operator()(SceneLoader::from_pbrt_tag, std
     MediumHandle medium_handle = GFXContext::load_medium_empty();
     medium_handle->packet.scale = medium.dict.GetOneFloat("scale", 1.f);
     medium_handle->packet.temperatureScale = medium.dict.GetOneFloat("temperaturescale", 1.f);
-    //medium_handle->packet.Lescale = medium.dict.GetOneFloat("Lescale", 1.f);
+    medium_handle->packet.LeScale = medium.dict.GetOneFloat("Lescale", 1.f);
     tiny_pbrt_loader::Vector3f sigma_a = medium.dict.GetOneRGB3f("sigma_a", { 0.f ,0.f ,0.f });
     tiny_pbrt_loader::Vector3f sigma_s = medium.dict.GetOneRGB3f("sigma_s", { 0.f ,0.f ,0.f });
     medium_handle->packet.sigmaA = { sigma_a.v[0], sigma_a.v[1] ,sigma_a.v[2] };
@@ -3010,7 +3500,7 @@ SceneLoader::result_type SceneLoader::operator()(SceneLoader::from_pbrt_tag, std
       // create majorant grid
       medium_handle->majorantGrid = Medium::MajorantGrid();
       medium_handle->majorantGrid->res = ivec3(16, 16, 16);
-      medium_handle->majorantGrid->bounds = medium_handle->density->bounds;
+      medium_handle->majorantGrid->bounds = { medium_handle->packet.bound_min, medium_handle->packet.bound_max };
       medium_handle->majorantGrid->voxels.resize(16 * 16 * 16);
       // Initialize _majorantGrid_ for _GridMedium_
       for (int z = 0; z < medium_handle->majorantGrid->res.z; ++z)
@@ -3019,6 +3509,94 @@ SceneLoader::result_type SceneLoader::operator()(SceneLoader::from_pbrt_tag, std
             bounds3 bounds = medium_handle->majorantGrid->voxel_bounds(x, y, z);
             medium_handle->majorantGrid->set(x, y, z, medium_handle->density->max_value(bounds));
           }
+    }
+    else if (type == "rgbgrid") {
+      medium_handle->packet.type = Medium::MediumType::RGBGridMedium;
+      int nx = medium.dict.GetOneInt("nx", 1);
+      int ny = medium.dict.GetOneInt("ny", 1);
+      int nz = medium.dict.GetOneInt("nz", 1);
+      float g = medium.dict.GetOneFloat("g", 0.);
+      float scale = medium.dict.GetOneFloat("scale", 1.f);
+      medium_handle->packet.sigmaA = { 1,1,1 };
+      medium_handle->packet.sigmaS = { 1,1,1 };
+      medium_handle->packet.scale = scale;
+      medium_handle->packet.aniso = { g };
+      
+      std::vector<tiny_pbrt_loader::Float> const& p0 = medium.dict.GetAllFloats("p0");
+      std::vector<tiny_pbrt_loader::Float> const& p1 = medium.dict.GetAllFloats("p1");
+
+      bounds3 bound;
+      bound.pMin = { p0[0], p0[1], p0[2] };
+      bound.pMax = { p1[0], p1[1], p1[2] };
+      medium_handle->packet.bound_min = bound.pMin;
+      medium_handle->packet.bound_max = bound.pMax;
+      medium_handle->packet.geometryTransform = pbrt_mat_to_semat4x4(medium.objectFromRender);
+      medium_handle->packet.geometryTransformInverse = pbrt_mat_to_semat4x4(medium.renderFromObject);
+
+      // load sigma_a grid
+      {
+        Medium::SampledGrid sigma_a;
+        sigma_a.nx = nx; sigma_a.ny = ny; sigma_a.nz = nz;
+        sigma_a.bounds = bound; sigma_a.grid_channel = 3;
+        auto const& sigma_a_double_array = medium.dict.GetAllFloats("sigma_a");
+        sigma_a.values.resize(sigma_a_double_array.size());
+        for (size_t i = 0; i < sigma_a_double_array.size(); ++i) {
+          sigma_a.values[i] = sigma_a_double_array[i];
+        }
+        medium_handle->density = std::move(sigma_a);
+
+        /*
+        int downsample = 8;
+        while (downsample > 0) {
+          std::vector<float> v2;
+          for (int z = 0; z < nz / 2; ++z)
+            for (int y = 0; y < ny / 2; ++y)
+              for (int x = 0; x < nx / 2; ++x) {
+                auto v = [&](int dx, int dy, int dz) -> float {
+                  return values[(2 * x + dx) + nx * ((2 * y + dy) + ny * (2 * z + dz))];
+                };
+                v2.push_back((v(0, 0, 0) + v(1, 0, 0) + v(0, 1, 0) + v(1, 1, 0) +
+                  v(0, 0, 1) + v(1, 0, 1) + v(0, 1, 1) + v(1, 1, 1)) / 8);
+              }
+
+          values = std::move(v2);
+          nx /= 2;
+          ny /= 2;
+          nz /= 2;
+          --downsample;
+        }*/
+      }
+      
+      // load sigma_s grid
+      {
+        Medium::SampledGrid sigma_s;
+        sigma_s.nx = nx; sigma_s.ny = ny; sigma_s.nz = nz;
+        sigma_s.bounds = bound; sigma_s.grid_channel = 3;
+        auto const& sigma_s_double_array = medium.dict.GetAllFloats("sigma_s");
+        sigma_s.values.resize(sigma_s_double_array.size());
+        for (size_t i = 0; i < sigma_s_double_array.size(); ++i) {
+          sigma_s.values[i] = sigma_s_double_array[i];
+        }
+        medium_handle->temperatureGrid = std::move(sigma_s);
+      }
+
+      // load sigma_s grid
+      
+      // create majorant grid
+      medium_handle->majorantGrid = Medium::MajorantGrid();
+      medium_handle->majorantGrid->res = ivec3(16, 16, 16);
+      medium_handle->majorantGrid->bounds = { medium_handle->packet.bound_min, medium_handle->packet.bound_max };
+      medium_handle->majorantGrid->voxels.resize(16 * 16 * 16);
+      // Initialize _majorantGrid_ for _RGBGridMediumm_
+      for (int z = 0; z < medium_handle->majorantGrid->res.z; ++z)
+        for (int y = 0; y < medium_handle->majorantGrid->res.y; ++y)
+          for (int x = 0; x < medium_handle->majorantGrid->res.x; ++x) {
+            bounds3 bounds = medium_handle->majorantGrid->voxel_bounds(x, y, z);
+            medium_handle->majorantGrid->set(x, y, z, 
+              (medium_handle->density->max_value(bounds) + medium_handle->temperatureGrid->max_value(bounds)) * scale
+            );
+          }
+
     }
 
     medium_map[medium.name] = medium_handle;

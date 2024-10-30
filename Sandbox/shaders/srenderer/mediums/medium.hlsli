@@ -272,14 +272,17 @@ struct GridMediumParameter : IMediumParameter {
     bounds3 bounds;
     float3 sigma_a_spec;
     float3 sigma_s_spec;
+    float temperatureScale;
     float3 Le_spec;
+    float LeScale;
     float4x4 w2o;
     float4x4 o2w;
     bool isEmissive;
     PhasePacket phase;
+    bounds3 temperatureBounds;
     imedium::MajorantGrid majorantGrid;
     SampledGrid densityGrid;
-    SampledGrid LeScale;
+    SampledGrid LeGrid;
     SampledGrid temperatureGrid;
     
     __init() {}
@@ -288,21 +291,34 @@ struct GridMediumParameter : IMediumParameter {
         sigma_s_spec = packet.get_sigma_s();
         Le_spec = float3(0);
         phase = { packet.get_g() };
+        LeScale = packet.LeScale;
+        temperatureScale = packet.temperatureScale;
+        isEmissive = false;
 
         o2w = packet.medium_to_world();
         w2o = packet.world_to_medium();
         bounds = bounds3(packet.bound_min, packet.bound_max);
-        
+        temperatureBounds = bounds3(packet.temperature_bound_min, packet.temperature_bound_max);
+
         densityGrid = {
-            packet.density_xyz.x, packet.density_xyz.y, 
-            packet.density_xyz.z, packet.density_offset, true
+            packet.density_xyz.x, packet.density_xyz.y,
+            packet.density_xyz.z, packet.density_offset,
+            packet.density_offset != -1
         };
 
+        temperatureGrid = {
+            packet.temperature_xyz.x, packet.temperature_xyz.y,
+            packet.temperature_xyz.z, packet.temperature_offset,
+            packet.temperature_offset != -1
+        };
+
+        if(temperatureGrid.valid) {
+            isEmissive = true;
+        }
+        
         majorantGrid = {
             bounds, packet.majorant_xyz, packet.majorant_offset
         };
-
-        isEmissive = false;
     }
 };
 
@@ -324,21 +340,22 @@ struct GridMedium : IMedium {
         float3 sigma_s = param.sigma_s_spec;
         // Scale scattering coefficients by medium density at p
         p = mul(float4(p, 1), param.o2w).xyz;
-        p = param.bounds.offset(p);
-        
-        float d = param.densityGrid.look_up(p);
+        float3 p_density = param.bounds.offset(p);
+
+        float d = param.densityGrid.look_up(p_density);
         sigma_a *= d;
         sigma_s *= d;
         // Compute grid emission Le at p
         float3 Le = float3(0);
         if (param.isEmissive) {
-            float scale = param.LeScale.look_up(p);
+            // float scale = param.LeScale.look_up(p);
+            float scale = param.LeScale;
             if (scale > 0) {
                 // Compute emitted radiance using temperatureGrid or Le_spec
                 if (param.temperatureGrid.valid) {
-                    float temp = param.temperatureGrid.look_up(p);
-                    // Le = scale * BlackbodySpectrum(temp).Sample(lambda);
-                    Le = 0.f;
+                    float3 p_temperature = param.temperatureBounds.offset(p);
+                    float temp = param.temperatureGrid.look_up(p_temperature);
+                    Le = param.LeScale * 100 * black_body_spectrum(temp * param.temperatureScale);
                 } else
                     Le = scale * param.Le_spec;
             }
@@ -351,7 +368,7 @@ struct GridMedium : IMedium {
         props.phase = param.phase;
         return props;
     }
-
+    
     // provides information about the medium’s majorant sigma_maj along the ray's extent
     static imedium::RayMajorantIterator sample_ray(Ray ray, float raytMax, TParam param) {
         // Transform ray to medium’s space and compute bounds overlap
@@ -384,17 +401,97 @@ struct GridMedium : IMedium {
 // ----------------------------------------------------
 struct RGBGridMediumParameter : IMediumParameter {
     bounds3 bounds;
-    float3 sigma_a_spec;
-    float3 sigma_s_spec;
-    float3 Le_spec;
-    float4x4 w2o;
-    float4x4 o2w;
+    float scale;
     bool isEmissive;
     PhasePacket phase;
+    float4x4 w2o;
+    float4x4 o2w;
+    RGBSampledGrid sigma_a_Grid;
+    RGBSampledGrid sigma_s_Grid;
     imedium::MajorantGrid majorantGrid;
-    SampledGrid densityGrid;
-    SampledGrid LeScale;
-    SampledGrid temperatureGrid;
+
+    __init() {}
+    __init(MediumPacket packet) {
+        o2w = packet.medium_to_world();
+        
+        // w2o = packet.world_to_medium();
+        // o2w = float4x4(1);
+        // w2o = float4x4(1);
+        bounds = bounds3(
+            mul(float4(packet.bound_min, 1), o2w).xyz,
+            mul(float4(packet.bound_max, 1), o2w).xyz, );
+        scale = packet.scale;
+        phase = { packet.get_g() };
+        isEmissive = false;
+
+        sigma_a_Grid = {
+            packet.density_xyz.x, packet.density_xyz.y,
+            packet.density_xyz.z, packet.density_offset,
+            packet.density_offset != -1
+        };
+
+        sigma_s_Grid = {
+            packet.temperature_xyz.x, packet.temperature_xyz.y,
+            packet.temperature_xyz.z, packet.temperature_offset,
+            packet.temperature_offset != -1
+        };
+
+        majorantGrid = {
+            bounds, packet.majorant_xyz, packet.majorant_offset
+        };
+    }
+};
+
+struct RGBGridMedium : IMedium {
+    // Associated a parameter type for each medium
+    typedef RGBGridMediumParameter TParam;
+    
+    // indicates whether it includes any volumetric emission
+    static bool is_emissive(TParam param) {
+        return param.isEmissive;
+    }
+
+    // returns information about the scattering and emission properties
+    // of the medium at a specified rendering-space point
+    // in the form of a MediumProperties object.
+    static imedium::MediumProperties sample_point(float3 p, TParam param) {
+        // Scale scattering coefficients by medium density at p
+        // p = mul(float4(p, 1), param.w2o).xyz;
+        float3 p_density = param.bounds.offset(p);
+
+        // Sample spectra for grid medium sigma_a and sigma_s
+        float3 sigma_a = param.sigma_a_Grid.look_up(p_density) * param.scale;
+        float3 sigma_s = param.sigma_s_Grid.look_up(p_density) * param.scale;
+        
+        // Compute grid emission Le at p
+        float3 Le = float3(0);
+
+        imedium::MediumProperties props;
+        props.sigma_a = sigma_a;
+        props.sigma_s = sigma_s;
+        props.Le = Le;
+        props.phase = param.phase;
+        return props;
+    }
+    
+    // provides information about the medium’s majorant sigma_maj along the ray's extent
+    static imedium::RayMajorantIterator sample_ray(Ray ray, float raytMax, TParam param) {
+        // Transform ray to medium’s space and compute bounds overlap
+        // apply inverse transformation to ray
+        // ray.origin = mul(float4(ray.origin, 1), param.w2o).xyz;
+        // ray.direction = mul(float4(ray.direction, 0), param.w2o).xyz;
+        float tMin; float tMax;
+        if (!param.bounds.intersect_p(ray.origin, ray.direction, raytMax, tMin, tMax))
+            return {};
+        // Sample spectra for grid medium sigma_a and sigma_s
+        float3 sigma_t = { 1.f, 1.f, 1.f };
+        // Create DDA majorant iterator for grid medium
+        imedium::RayMajorantIterator iter;
+        iter.type = imedium::RayMajorantIterator::IteratorType::dda;
+        iter.dda = imedium::DDAMajorantIterator(
+            ray, tMin, tMax, param.majorantGrid, sigma_t);
+        return iter;
+    }
 };
 
 #endif // _SRENDERER_MEDIUM_MEDIUM_HLSLI_

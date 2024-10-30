@@ -54,6 +54,11 @@ auto ViewportWidget::claerCustomDrawFn() noexcept -> void {
   custom_imgui_draws.clear();
 }
 
+auto ViewportWidget::getWindowPosition() noexcept -> vec2 { return { info.windowPos.x, info.windowPos.y }; }
+auto ViewportWidget::getMousePosition() noexcept -> vec2 { return { info.mousePos.x, info.mousePos.y }; }
+auto ViewportWidget::isWindowHovered() noexcept -> bool { return info.isHovered; }
+auto ViewportWidget::isWindowFocused() noexcept -> bool { return info.isFocused; }
+
 /** draw gui*/
 auto ViewportWidget::onDrawGui() noexcept -> void {
    ImGui::Begin("Viewport", 0, ImGuiWindowFlags_MenuBar);

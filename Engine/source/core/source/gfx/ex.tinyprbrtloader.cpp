@@ -10,6 +10,7 @@
 #include <functional>
 #include <iostream>
 #include <string_view>
+#include <libdeflate/libdeflate.h>
 
 namespace tiny_pbrt_loader {
   // Hack the pbrt code features
@@ -28,9 +29,12 @@ namespace tiny_pbrt_loader {
 #define DCHECK_NE(...)
 #define CHECK_EQ(...)
 #define DCHECK_LT(...)
+#define CHECK_GT(...)
+
+  static std::string path_of_the_main_file = "";
 
   std::string ResolveFilename(std::string const& name) {
-    return name;
+    return path_of_the_main_file + name;
   }
 
   // helpers, fwiw
@@ -893,6 +897,60 @@ namespace tiny_pbrt_loader {
 #endif
   }
 
+  std::string ReadDecompressedFileContents(std::string filename) {
+    std::string compressed = ReadFileContents(filename);
+
+    // Get the size of the uncompressed file: with gzip, it's stored in the
+    // last 4 bytes of the file.  (One nit is that only 4 bytes are used,
+    // so it's actually the uncompressed size mod 2^32.)
+    CHECK_GT(compressed.size(), 4);
+    size_t sizeOffset = compressed.size() - 4;
+
+    // It's stored in little-endian, so manually reconstruct the value to
+    // be sure that it ends up in the right order for the target system.
+    const unsigned char* s = (const unsigned char*)compressed.data() + sizeOffset;
+    size_t size = (uint32_t(s[0]) | (uint32_t(s[1]) << 8) | (uint32_t(s[2]) << 16) |
+      (uint32_t(s[3]) << 24));
+
+    libdeflate_decompressor* d = libdeflate_alloc_decompressor();
+    std::string decompressed(size, '\0');
+    int retries = 0;
+    while (true) {
+      size_t actualOut;
+      libdeflate_result result = libdeflate_gzip_decompress(
+        d, compressed.data(), compressed.size(), decompressed.data(),
+        decompressed.size(), &actualOut);
+      switch (result) {
+      case LIBDEFLATE_SUCCESS:
+        CHECK_EQ(actualOut, decompressed.size());
+        LOG_VERBOSE("Decompressed %s from %d to %d bytes", filename,
+          compressed.size(), decompressed.size());
+        return decompressed;
+
+      case LIBDEFLATE_BAD_DATA:
+        ErrorExit("%s: invalid or corrupt compressed data", filename);
+
+      case LIBDEFLATE_INSUFFICIENT_SPACE:
+        // Assume that the decompressed contents are > 4GB and that
+        // thus the size reported in the file didn't tell the whole
+        // story.  Since the stored size is mod 2^32, try increasing
+        // the allocation by that much.
+        decompressed.resize(decompressed.size() + (1ull << 32));
+
+        // But if we keep going around in circles, then fail eventually
+        // since there is probably some other problem.
+        CHECK_LT(++retries, 10);
+        break;
+
+      default:
+      case LIBDEFLATE_SHORT_OUTPUT:
+        // This should never be returned by libdeflate, since we are
+        // passing a non-null actualOut pointer...
+        LOG_FATAL("Unexpected return value from libdeflate");
+      }
+    }
+  }
+
   std::unique_ptr<Tokenizer> Tokenizer::CreateFromFile(
     const std::string& filename,
     std::function<void(const char*, const FileLoc*)> errorCallback) {
@@ -906,15 +964,16 @@ namespace tiny_pbrt_loader {
         std::move(errorCallback));
     }
 
-    //if (HasExtension(filename, ".gz")) {
-    //  std::string str = ReadDecompressedFileContents(filename);
-    //  return std::make_unique<Tokenizer>(std::move(str), filename,
-    //    std::move(errorCallback));
-    //}
-
-    std::string str = ReadFileContents(filename);
-    return std::make_unique<Tokenizer>(std::move(str), filename,
-      std::move(errorCallback));
+    if (filename.substr(filename.size() - 3) == ".gz") {
+      std::string str = ReadDecompressedFileContents(filename);
+      return std::make_unique<Tokenizer>(std::move(str), filename,
+        std::move(errorCallback));
+    }
+    else {
+      std::string str = ReadFileContents(filename);
+      return std::make_unique<Tokenizer>(std::move(str), filename,
+        std::move(errorCallback));
+    }
   }
 
   std::unique_ptr<Tokenizer> Tokenizer::CreateFromString(
@@ -2679,9 +2738,15 @@ namespace tiny_pbrt_loader {
       return;
     }
     mediumNames.insert(name);
+    
+    const class Transform renderFromObject = RenderFromObject(0);
+    const class Transform objectFromRender = Inverse(renderFromObject);
 
     // Create _ParameterDictionary_ for medium and call _AddMedium()_
     MediumSceneEntity mediumEntity;
+    memcpy(&(mediumEntity.renderFromObject.m), &(renderFromObject.m[0][0]), sizeof(Float) * 16);
+    memcpy(&(mediumEntity.objectFromRender.m), &(objectFromRender.m[0][0]), sizeof(Float) * 16);
+    
     mediumEntity.dict.nOwnedParams = params.size();
     mediumEntity.dict.params = params.finalize();
     std::vector<ParsedParameter*> medium_param_state =
@@ -2970,8 +3035,9 @@ namespace tiny_pbrt_loader {
     params.clear();
   }
 
-  std::unique_ptr<BasicScene> load_scene_from_string(std::string str) {
+  std::unique_ptr<BasicScene> load_scene_from_string(std::string str, std::string dir_path) {
     std::unique_ptr<BasicScene> scene = std::make_unique<BasicScene>();
+    path_of_the_main_file = dir_path;
     BasicSceneBuilder target(scene.get());
     ParseString(&target, str);
     return std::move(scene);
@@ -3123,6 +3189,12 @@ namespace tiny_pbrt_loader {
     return lookupArray<ParameterType::Normal3f>(name);
   }
 
-  static std::map<std::string, Spectrum> cachedSpectra;
+  std::vector<Float> const& ParameterDictionary::GetAllFloats(const std::string& name) const {
+    for (const ParsedParameter* p : params)
+      if (p->name == name)
+        return p->floats;
+    return {};
+  }
 
+  static std::map<std::string, Spectrum> cachedSpectra;
 }

@@ -130,6 +130,28 @@ class rhi:
         DEPTH_ATTACHMENT = 1 << 5
         TRANSIENT_ATTACHMENT = 1 << 6
         INPUT_ATTACHMENT = 1 << 7
+
+    class BlendOperation:
+        ADD = 1 << 0
+        SUBTRACT = 1 << 1
+        REVERSE_SUBTRACT = 1 << 2
+        MIN = 1 << 3
+        MAX = 1 << 4
+    
+    class BlendFactor:
+        ZERO = 1 << 0
+        ONE = 1 << 1
+        SRC = 1 << 2
+        ONE_MINUS_SRC = 1 << 3
+        SRC_ALPHA = 1 << 4
+        ONE_MINUS_SRC_ALPHA = 1 << 5
+        DST = 1 << 6
+        ONE_MINUS_DST = 1 << 7
+        DST_ALPHA = 1 << 8
+        ONE_MINUS_DST_ALPHA = 1 << 9
+        SRC_ALPHA_SATURATED = 1 << 10
+        CONSTANT = 1 << 11
+        ONE_MINUS_CONSTANT = 1 << 12
     
     class EnumBufferUsage:
         MAP_READ = 1 << 0
@@ -508,6 +530,7 @@ class gfx:
             def bindingResourceLightTrail(self) -> rhi.BindingResource: ...
             def bindingSceneDescriptor(self) -> rhi.BindingResource: ...
             def getPositionBuffer(self) -> gfx.BufferHandle: ...
+            def getDefaultResolution(self) -> ivec2: ...
             ...
 
         def serialize(self, path: str) -> None:
@@ -617,6 +640,9 @@ class rdg:
             def setAttachmentLoc(self, loc:int) -> rdg.TextureInfo.ConsumeEntry: ...
             def enableDepthWrite(self, enable:bool) -> rdg.TextureInfo.ConsumeEntry: ...
             def setDepthCompareFn(self, cmp:rhi.CompareFunction) -> rdg.TextureInfo.ConsumeEntry: ...
+            def setBlendOperation(self, op:rhi.BlendOperation) -> rdg.TextureInfo.ConsumeEntry: ...
+            def setSourceBlenderFactor(self, fct:rhi.BlendFactor) -> rdg.TextureInfo.ConsumeEntry: ...
+            def setTargetBlenderFactor(self, fct:rhi.BlendFactor) -> rdg.TextureInfo.ConsumeEntry: ...
 
         ...
 

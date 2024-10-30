@@ -15,16 +15,22 @@ from examples.inspector.pipeline import *
 class EditorApp(EditorApplication):
     def __init__(self):
         super().__init__()
-    
+
     def onInit(self):
-        self.scene = se.gfx.Context.load_scene_pbrt("D:/Art/Scenes/pbrt-v4-volumes/scenes/ground_explosion/ground_explosion.pbrt")
+        # self.scene = se.gfx.Context.load_scene_pbrt("D:/Art/Scenes/pbrt-v4-volumes/scenes/ground_explosion/ground_explosion.pbrt")
         # self.scene = se.gfx.Context.load_scene_xml("P:/GitProjects/lajolla_public/scenes/volpath_test/vol_cbox.xml")
         # self.scene = se.gfx.Context.load_scene_xml("D:/Art/Scenes/living-room-3-mitsuba/living-room-3/scene_v3.xml")
         # self.scene = se.gfx.Context.load_scene_xml("D:/Art/Scenes/dragon/scene_v3.xml")
         # self.scene = se.gfx.Context.load_scene_xml("D:/Art/Scenes/living-room-mitsuba/scene_v3.xml")
         # self.scene = se.gfx.Context.load_scene_xml("D:/Art/Scenes/living-room-2/scene_v3.xml")
         # self.scene = se.gfx.Context.load_scene_xml("D:/Art/Scenes/kitchen-mitsuba/scene_v3.xml")
-        
+        # self.scene = se.gfx.Context.load_scene_xml("D:/Art/Scenes/living-room-2/scene_v3_colorful.xml")
+        # self.scene = se.gfx.Context.load_scene_xml("D:/Art/Scenes/classroom/scene_v3.xml")
+        # self.scene = se.gfx.Context.load_scene_xml("P:/GitProjects/lajolla_public/scenes/volpath_test/hetvol.xml")
+        # self.scene = se.gfx.Context.load_scene_gltf("D:/Art/Scenes/veach-mis-mitsuba/scene_v3.gltf")
+        # self.scene = se.gfx.Context.load_scene_gltf("examples/glt/_data/box.gltf")
+        self.scene = se.gfx.Context.load_scene_xml("D:/Art/Scenes/living-room-3-mitsuba/living-room-3/scene_v3_simple.xml")
+
         # self.scene = se.gfx.Context.load_scene_xml("D:/Art/Scenes/house/scene_v3.xml")
         print("Scene Loaded Successfully!")
         
@@ -47,7 +53,8 @@ class EditorApp(EditorApplication):
         # self.scene = se.gfx.Context.load_scene_xml("P:/GitProjects/lajolla_public/scenes/volpath_test/volpath_test3.xml")
         # self.scene = se.gfx.Context.load_scene_xml("D:/Art/Scenes/cornell-box-mitsuba/scene.xml")
         # self.scene = se.gfx.Context.load_scene_xml("D:/Art/Scenes/living-room-3-mitsuba/living-room-3/scene_v3.xml")
- 
+        # self.scene = se.gfx.Context.load_scene_xml("D:/Art/Scenes/living-room-3-mitsuba/living-room-3/scene_v3.xml")
+
         se.gfx.PMFConstructor.upload_datapack()
     
     def onUpdate(self):

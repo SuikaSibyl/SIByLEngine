@@ -177,8 +177,8 @@ struct LightBVHNode {
                 importance *= cosThetap_i;
             }
         }
-        // importance = rgb().r * importance / phi;
-
+        // importance = rgb().b * importance / phi;
+        
         return importance;
     }
 

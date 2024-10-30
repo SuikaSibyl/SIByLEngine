@@ -24,6 +24,9 @@ struct LeakyReLU : IActivationFn {
 // exponential
 struct Exponential : IActivationFn {
     [Differentiable] static float eval(float x) { return exp(x); }
+    [Differentiable] static float2 eval(float2 x) { return exp(x); }
+    [Differentiable] static float3 eval(float3 x) { return exp(x); }
+    [Differentiable] static float4 eval(float4 x) { return exp(x); }
     [Differentiable] static float16_t eval(float16_t x) { return exp(x); }
 };
 

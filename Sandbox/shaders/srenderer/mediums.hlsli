@@ -12,6 +12,8 @@ imedium::RayMajorantIterator sample_ray(Ray ray, float tMax, MediumPacket medium
         return HomogeneousMedium::sample_ray(ray, tMax, HomogeneousMediumParameter(medium));
     case MediumPacket::MediumType::GRID_MEDIUM:
         return GridMedium::sample_ray(ray, tMax, GridMediumParameter(medium));
+    case MediumPacket::MediumType::RGBGRID_MEDIUM:
+        return RGBGridMedium::sample_ray(ray, tMax, RGBGridMediumParameter(medium));
     default: return {};
     }
 }
@@ -22,6 +24,8 @@ imedium::MediumProperties sample_point(float3 p, MediumPacket medium) {
         return HomogeneousMedium::sample_point(p, HomogeneousMediumParameter(medium));
     case MediumPacket::MediumType::GRID_MEDIUM:
         return GridMedium::sample_point(p, GridMediumParameter(medium));
+    case MediumPacket::MediumType::RGBGRID_MEDIUM:
+        return RGBGridMedium::sample_point(p, RGBGridMediumParameter(medium));
     default: return {};
     }
 }

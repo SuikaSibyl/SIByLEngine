@@ -144,6 +144,11 @@ bool any_nan_inf(float2 v) { return any(isinf(v) || isnan(v)); }
 bool any_nan_inf(float3 v) { return any(isinf(v) || isnan(v)); }
 bool any_nan_inf(float4 v) { return any(isinf(v) || isnan(v)); }
 
+bool is_nan_or_inf(float v) { return isinf(v) || isnan(v); }
+bool2 is_nan_or_inf(float2 v) { return isinf(v) || isnan(v); }
+bool3 is_nan_or_inf(float3 v) { return isinf(v) || isnan(v); }
+bool4 is_nan_or_inf(float4 v) { return isinf(v) || isnan(v); }
+
 /**
  * floating-point complex structure based on pbrt-v4.
  */
@@ -319,9 +324,7 @@ float3 yuv2rgb(float3 yuv) {
     return rgb;
 }
 
-float average(float3 v) {
-    return (v.x + v.y + v.z) / 3;
-}
+[Differentiable] float average(float3 v) { return (v.x + v.y + v.z) / 3; }
 
 // decompose a floating-point number into its components
 int exponent(float v) { return (asuint(v) >> 23) - 127; }

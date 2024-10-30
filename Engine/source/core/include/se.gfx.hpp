@@ -328,7 +328,9 @@ struct SIByL_API Medium {
     std::vector<float> values;
     float max_value(const bounds3& bounds) const;
     float lookup(const ivec3& p) const;
+    vec3 lookup3(const ivec3& p) const;
     bounds3 bounds;
+    int grid_channel = 1;
   };
 
   struct MajorantGrid {
@@ -359,6 +361,10 @@ struct SIByL_API Medium {
     int32_t le_offset = -1;
     ivec3 majorant_nxyz;
     int32_t majorant_offset = -1;
+    vec3 temperature_bound_min;
+    float temperature_start;
+    vec3 temperature_bound_max;
+    float pdadding;
     rhi::AffineTransformMatrix geometryTransform = {};
     rhi::AffineTransformMatrix geometryTransformInverse = {};
   } packet;
@@ -730,6 +736,8 @@ struct SIByL_API Scene : public Resource {
   auto getSceneLightCounts() noexcept -> int;
   auto useEditorCameraView(Transform* transfrom, Camera* camera) noexcept -> void;
   auto getEditorActiveCameraIndex() noexcept -> int;
+  auto getDefaultResolution() noexcept -> ivec2;
+
   struct EditorInfo {
     Transform* viewport_transfrom = nullptr;
     Camera* viewport_camera = nullptr;
@@ -750,6 +758,7 @@ struct SIByL_API Scene : public Resource {
     ALL         = (1 << 10) - 1,
   };
   uint64_t dirtyFlags = 0;
+  ivec2 resolution = { 512,512 };
 };
 
 struct SIByL_API SceneHandle{

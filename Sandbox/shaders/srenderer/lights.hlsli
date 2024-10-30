@@ -6,6 +6,7 @@
 #include "shapes/shape.hlsli"
 #include "shapes/triangles.hlsli"
 #include "shapes/sphere.hlsli"
+#include "shapes/rectangle.hlsli"
 #include "common/sampling.hlsli"
 #include "materials.hlsli"
 
@@ -56,6 +57,27 @@ ilight::sample_li_out nee_given_light(ilight::sample_li_in i, LightPacket data) 
         o.valid = true;
         return o;
     }
+    case LightType::RECTANGLE: {
+        const uint geometryID = data.uintscalar_1;
+        GeometryData geometry = GPUScene_geometry[geometryID];
+        const float4x4 o2w = ObjectToWorld(geometry);
+        const float4x4 o2wn = ObjectToWorldNormal(geometry);
+        RectangleParameter rect = { o2w, o2wn };
+        ishape::sample_in ishape_i;
+        ishape_i.position = i.p;
+        ishape_i.uv = i.uv;
+        ishape::sample ishape_o = Rectangle::sample(ishape_i, rect);
+        ilight::sample_li_out o;
+        o.wi = normalize(ishape_o.position - i.p);
+        o.x = ishape_o.position;
+        const uint materialID = geometry.materialID;
+        MaterialData material = GPUScene_material[materialID];
+        o.L = materials::emission(material);
+        o.pdf = ishape_o.pdf;
+        o.ns = ishape_o.normal;
+        o.valid = true;
+        return o;
+    }
     else: break;
     }
     ilight::sample_li_out o;
@@ -87,6 +109,19 @@ float nee_given_light_pdf(ilight::sample_li_pdf_in i, LightPacket data) {
     pdf_in.sample_point = i.light_point;
     pdf_in.sample_normal = i.light_normal;
     return Sphere::sample_pdf(pdf_in, sphere);
+    }
+    case LightType::RECTANGLE: {
+    const uint geometryID = data.uintscalar_1;
+    GeometryData geometry = GPUScene_geometry[geometryID];
+    const float4x4 o2w = ObjectToWorld(geometry);
+    const float4x4 o2wn = ObjectToWorldNormal(geometry);
+    RectangleParameter rect = { o2w, o2wn };
+    ishape::pdf_in pdf_in;
+    pdf_in.ref_point = i.ref_point;
+    pdf_in.ref_normal = i.ref_normal;
+    pdf_in.sample_point = i.light_point;
+    pdf_in.sample_normal = i.light_normal;
+    return Rectangle::sample_pdf(pdf_in, rect);
     }
     else : break;
     }

@@ -169,8 +169,11 @@ GeometryHit fetchSphereGeometryHit(GeometryData geometry, Ray ray, float t) {
     hit.barycentric = float2(0.333);
     if (distance(ray.origin, sphere_center) >= sphere_radius) 
         SetFaceForward(hit, true);
-    else
+    else {
         SetFaceForward(hit, false);
+        hit.shadingNormal = -hit.shadingNormal;
+        hit.geometryNormal = -hit.geometryNormal;
+    }
     return hit;
 }
 

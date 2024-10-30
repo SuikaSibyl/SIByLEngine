@@ -25,6 +25,13 @@ RWStructuredBuffer<MediumPacket> GPUScene_medium;
 RWStructuredBuffer<float> GPUScene_grid_storage;
 Sampler2D GPUScene_textures[];
 
+Sampler2D LUT_blackbody_spectrum;
+
+float3 black_body_spectrum(float temperature) {
+    float alpha = clamp((temperature - 10) / (20000 - 10), 0, 1);
+    return LUT_blackbody_spectrum.Sample(float2(alpha, 0.5)).xyz;
+}
+
 float3 fetchVertexPosition(int vertexIndex) { return GPUScene_position.Load<float3>(vertexIndex * 12); }
 float3 fetchVertexNormal(int vertexIndex) { return GPUScene_vertex.Load<float3>(vertexIndex * 32 + 0); }
 float3 fetchVertexTangent(int vertexIndex) { return GPUScene_vertex.Load<float3>(vertexIndex * 32 + 12); }
@@ -145,7 +152,7 @@ GeometryHit fetchTrimeshGeometryHit(
     float3 tangentOS = interpolate(tangents, bary);
     float4 tangentWS = float4(normalize(mul(float4(tangentOS, 0), o2w).xyz), geometry.oddNegativeScaling);
     hit.tangent = tangentWS;
-
+    
     // compute lambda for ray cone based lod sampling
     const float2 uv_10 = vertexUVs[1] - vertexUVs[0];
     const float2 uv_20 = vertexUVs[2] - vertexUVs[0];
@@ -153,7 +160,7 @@ GeometryHit fetchTrimeshGeometryHit(
     const float3 edge_10 = mul(float4(vertexPositions[1] - vertexPositions[0], 0.0), o2w).xyz;
     const float3 edge_20 = mul(float4(vertexPositions[2] - vertexPositions[0], 0.0), o2w).xyz;
     const float p_a = length(cross(edge_10, edge_20));
-    hit.lambda = 0.5f * log2(t_a / p_a);
+    hit.lambda = t_a / p_a;
 
     SetHit(hit, true);
 

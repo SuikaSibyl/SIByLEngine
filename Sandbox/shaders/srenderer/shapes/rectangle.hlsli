@@ -103,6 +103,41 @@ struct Rectangle {
         if (abs(local.x) <= 1.f && abs(local.y) <= 1.f) return t;
         return -1.f;
     }
+
+    static ishape::sample sample(ishape::sample_in i, RectangleParameter param) {
+        float3 local_position = float3(i.uv * 2 - 1, 0);
+        float3 world_position = mul(float4(local_position, 1.0), param.o2w).xyz;
+        float3 world_0 = mul(float4(0, 0, 0, 1), param.o2w).xyz;
+        float3 world_x = mul(float4(1, 0, 0, 1), param.o2w).xyz;
+        float3 world_y = mul(float4(0, 1, 0, 1), param.o2w).xyz;
+        float3 world_z = mul(float4(0, 0, 1, 1), param.o2w).xyz;
+        float edge_1 = length(world_x - world_0);
+        float edge_2 = length(world_y - world_0);
+        float area = edge_1 * edge_2 * 4;
+        float3 direction = normalize(world_position - i.position);
+
+        ishape::sample sample_o;
+        sample_o.position = world_position;
+        sample_o.normal = normalize(world_z - world_0);
+        sample_o.pdf = length_squared(i.position - sample_o.position) 
+        / (area * abs(dot(sample_o.normal, -direction)));
+
+        return sample_o;
+    }
+
+    static float sample_pdf(ishape::pdf_in i, RectangleParameter param) {
+        float3 world_0 = mul(float4(0, 0, 0, 1), param.o2w).xyz;
+        float3 world_x = mul(float4(1, 0, 0, 1), param.o2w).xyz;
+        float3 world_y = mul(float4(0, 1, 0, 1), param.o2w).xyz;
+        float3 world_z = mul(float4(0, 0, 1, 1), param.o2w).xyz;
+        float edge_1 = length(world_x - world_0);
+        float edge_2 = length(world_y - world_0);
+        float area = edge_1 * edge_2 * 4;
+        float3 direction = normalize(i.sample_point - i.ref_point);
+        
+        return length_squared(i.sample_point - i.ref_point) 
+        / (area * abs(dot(i.sample_normal, -direction)));
+    }
 };
 
 GeometryHit fetchRectangleGeometryHit(GeometryData geometry, Ray ray, float t) {
@@ -121,7 +156,7 @@ GeometryHit fetchRectangleGeometryHit(GeometryData geometry, Ray ray, float t) {
     hit.barycentric = float2(0, 0);
     hit.tangent = float4(0);
     hit.barycentric = float2(0.333);
-
+    
     if (ro.z > 0) SetFaceForward(hit, true);
     else {
         SetFaceForward(hit, false);

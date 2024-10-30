@@ -95,6 +95,10 @@ struct SIByL_API TextureInfo {
     bool depthWrite = false;
     rhi::CompareFunction depthCmp = rhi::CompareFunction::ALWAYS;
     uint32_t attachLoc = uint32_t(-1);
+    rhi::BlendOperation bldOperation = rhi::BlendOperation::ADD;
+    rhi::BlendFactor srcFactor = rhi::BlendFactor::ONE;
+    rhi::BlendFactor dstFactor = rhi::BlendFactor::ZERO;
+
     ConsumeEntry() = default;
     ConsumeEntry(ConsumeType _type,
       rhi::AccessFlags _access = 0, rhi::PipelineStages _stages = 0,
@@ -114,6 +118,9 @@ struct SIByL_API TextureInfo {
         uint32_t level_beg, uint32_t level_end) noexcept -> ConsumeEntry&;
     auto setAttachmentLoc(uint32_t loc) noexcept -> ConsumeEntry&;
     auto setAccess(uint32_t acc) noexcept -> ConsumeEntry&;
+    auto setBlendOperation(rhi::BlendOperation operation) noexcept -> ConsumeEntry&;
+    auto setSourceBlenderFactor(rhi::BlendFactor factor) noexcept -> ConsumeEntry&;
+    auto setTargetBlenderFactor(rhi::BlendFactor factor) noexcept -> ConsumeEntry&;
   };
 
   auto consume(ConsumeEntry const& entry) noexcept -> TextureInfo&;
@@ -343,6 +350,7 @@ struct SIByL_API RenderPass : public PipelinePass {
   auto prepareDelegateData(RenderContext* context, RenderData const& renderData) noexcept -> RenderData::DelegateData;
   virtual auto generateMarker() noexcept -> void;
   virtual auto init(gfx::ShaderModule* vertex, gfx::ShaderModule* fragment) noexcept -> void;
+  virtual auto init(gfx::ShaderModule* vertex, gfx::ShaderModule* fragment, gfx::ShaderModule* geometry) noexcept -> void;
   // utils functions
   auto setRenderPassDescriptor(rhi::RenderPassDescriptor const& renderPassDescriptor) noexcept -> void;
   auto issueDirectDrawcalls(rhi::RenderPassEncoder* encoder, gfx::SceneHandle scene) noexcept -> void;

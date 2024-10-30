@@ -2,9 +2,9 @@
 #define _SRENDERER_GGX_BRDF_MATERIAL_
 
 #include "bxdf.hlsli"
-#include "common/math.hlsli"
 #include "common/sampling.hlsli"
-#include "common/microfacet.hlsli"
+#include "srenderer/scene-binding.hlsli"
+#include "srenderer/spt.hlsli"
 
 ///////////////////////////////////////////////////////////////////////////////////////////
 // Plastic Material
@@ -17,37 +17,89 @@
 ///////////////////////////////////////////////////////////////////////////////////////////
 
 struct PlasticMaterial : IBxDFParameter {
+    float3 Kd;
+    float3 Ks;
     float alpha;
+    float3 eta; // real component of IoR
+
+    __init() {}
+    __init(MaterialData mat, float2 uv) {
+        Kd = mat.floatvec_0.xyz * sampleTexture(mat.albedo_tex, uv).rgb;
+        Ks = mat.floatvec_2.xyz * sampleTexture(mat.ext1_tex, uv).rgb;
+        alpha = mat.floatvec_0.w;
+        eta = mat.floatvec_2.w;
+    }
 };
 
 struct PlasticBRDF : IBxDF {
     typedef PlasticMaterial TParam;
-
-    float3 R;
-    IsotropicTrowbridgeReitzParameter params;
-    IsotropicTrowbridgeReitzDistribution distribution;
-    DielectricFresnel fresnel;
-
-    __init() {
-        params = IsotropicTrowbridgeReitzParameter(0.5);
-        R = float3(1);
-        fresnel = DielectricFresnel(1.0, 2.0);
-    }
+    
     // Evaluate the BSDF
     static float3 eval(ibsdf::eval_in i, PlasticMaterial material) {
+        const Frame frame = i.shading_frame;
+        const float3 wi = i.shading_frame.to_local(i.wi);
+        const float3 wo = i.shading_frame.to_local(i.wo);
+        const float3 wh = normalize(wi + wo);
+        if (wo.z < 0 || wi.z < 0) return float3(0);
+        
+        // Evaluate rough dilectric BRDF
         IsotropicTrowbridgeReitzParameter params;
         params.alpha = material.alpha;
-        DielectricFresnel fresnel = DielectricFresnel(1.0, 2.0);
-        float3 R = float3(1);
-        return microfacet_reflection::eval<IsotropicTrowbridgeReitzDistribution>(i, fresnel, params, R);
+        const float3 ggx_contrib = eval_isotropic_ggx_dielectric(wi, wo, wh, material.eta, params);
+        const float3 spec_contrib = material.Ks * ggx_contrib;
+
+        // diffuse layer:
+        // In order to reflect from the diffuse layer,
+        // the photon needs to bounce through the dielectric layers twice.
+        // The transmittance is computed by 1 - fresnel.
+        const float F_o = FresnelDielectric(abs(dot(wi, wh)), average(material.eta));
+        const float F_i = FresnelDielectric(abs(dot(wo, wh)), average(material.eta));
+
+        float3 diffuse_contrib = (1.f - F_o) * (1.f - F_i) / k_pi;
+        diffuse_contrib *= theta_phi_coord::AbsCosTheta(wi) * material.Kd;
+
+        return spec_contrib + diffuse_contrib;
     }
+
     // importance sample the BSDF
     static ibsdf::sample_out sample(ibsdf::sample_in i, PlasticMaterial material) {
-        IsotropicTrowbridgeReitzParameter params;
-        params.alpha = material.alpha;
-        ibsdf::sample_out o = microfacet_reflection::sample_vnormal<
-            IsotropicTrowbridgeReitzDistribution>(i, params);
-        
+        const Frame frame = i.shading_frame;
+        float3 wi = i.shading_frame.to_local(i.wi);
+        if (wi.z < 0) { wi.z = -wi.z; i.wi = frame.to_world(wi); }
+        ibsdf::sample_out o;
+
+        float lS = luminance(material.Ks);
+        float lR = luminance(material.Kd);
+        float diffuse_prob = lR / (lR + lS);
+        float spec_prob = lS / (lR + lS);
+
+        if (i.u.z < lR / (lR + lS)) {
+            // Sample diffuse BRDF
+            o.wo = frame.to_world(sample_cos_hemisphere(i.u.xy));
+            o.pdf = abs(dot(frame.n, o.wo)) * k_inv_pi;
+
+            const float3 wo = i.shading_frame.to_local(o.wo);
+            const float3 wh = normalize(wi + wo);
+
+            IsotropicTrowbridgeReitzParameter params;
+            params.alpha = material.alpha;
+            const float pdf = IsotropicTrowbridgeReitzDistribution::pdf_vnormal(wi, wh, params);
+            const float VdotH = abs(dot(wi, wh));
+            float spec_pdf = pdf / (4 * abs(VdotH));
+            o.pdf = o.pdf * diffuse_prob + spec_pdf * spec_prob;
+        } 
+        else {
+            // Sample rough conductor BRDF
+            // Sample microfacet normal wm and reflected direction wi
+            IsotropicTrowbridgeReitzParameter params;
+            params.alpha = material.alpha;
+            o = microfacet_reflection::sample_vnormal<
+                IsotropicTrowbridgeReitzDistribution>(i, params);
+
+            float diffuse_pdf = max(dot(frame.n, o.wo), 0) * k_inv_pi;
+            o.pdf = o.pdf * spec_prob + diffuse_pdf * diffuse_prob;
+        }
+
         // evaluate the BSDF
         ibsdf::eval_in eval_in;
         eval_in.wi = i.wi;
@@ -55,20 +107,47 @@ struct PlasticBRDF : IBxDF {
         eval_in.geometric_normal = i.geometric_normal;
         eval_in.shading_frame = i.shading_frame;
         o.bsdf = eval(eval_in, material) / o.pdf;
-        
-        // // reject samples below the surface
-        // const float3 wo = i.shading_frame.to_local(o.wo);
-        // if (wo.z < 0.f || o.pdf == 0.f) {
-        //     o.bsdf = float3(0);
-        //     o.pdf = 0.f;
-        // }
-        
         return o;
     }
+
     // Evaluate the PDF of the BSDF sampling
-    float pdf(ibsdf::pdf_in i) {
-        return 0.f;
-        // return microfacet_reflection::pdf(i, distribution, params);
+    static float pdf(ibsdf::pdf_in i, PlasticMaterial material) {
+        const Frame frame = i.shading_frame;
+        float3 wi = i.shading_frame.to_local(i.wi);
+        const float3 wo = i.shading_frame.to_local(i.wo);
+        if (wi.z < 0) { wi.z = -wi.z; i.wi = frame.to_world(wi); }
+        const float3 wh = normalize(wi + wo);
+
+        float lS = luminance(material.Ks);
+        float lR = luminance(material.Kd);
+        float diffuse_prob = lR / (lR + lS);
+        float spec_prob = lS / (lR + lS);
+
+
+        IsotropicTrowbridgeReitzParameter params;
+        params.alpha = material.alpha;
+        const float pdf = IsotropicTrowbridgeReitzDistribution::pdf_vnormal(wi, wh, params);
+        const float VdotH = abs(dot(wi, wh));
+        float spec_pdf = pdf / (4 * abs(VdotH));
+        float diffuse_pdf = max(dot(frame.n, i.wo), float(0)) * k_inv_pi;
+        
+        return spec_pdf * spec_prob + diffuse_pdf * diffuse_prob;
+    }
+
+    [Differentiable]
+    static float3 eval_isotropic_ggx_dielectric(
+        no_diff float3 wi,
+        no_diff float3 wo,
+        no_diff float3 wh,
+        float3 eta,
+        IsotropicTrowbridgeReitzParameter params
+    ) {
+        // Evaluate Fresnel factor F for conductor BRDF
+        float3 F = FresnelDielectric(abs(dot(wi, wh)), average(eta));
+        float3 f = IsotropicTrowbridgeReitzDistribution::D(wh, params)
+                    * IsotropicTrowbridgeReitzDistribution::G(wo, wi, params)
+                    * F / (4 * theta_phi_coord::AbsCosTheta(wi));
+        return f;
     }
 };
 

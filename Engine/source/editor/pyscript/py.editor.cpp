@@ -185,6 +185,10 @@ PYBIND11_MODULE(pyeditor, m) {
     class_ViewportWidget.def("use3DCamera", &editor::ViewportWidget::use3DCamera);
     class_ViewportWidget.def("addCustomDrawFn", &editor::ViewportWidget::addCustomDrawFn);
     class_ViewportWidget.def("claerCustomDrawFn", &editor::ViewportWidget::claerCustomDrawFn);
+    class_ViewportWidget.def("getWindowPosition", &editor::ViewportWidget::getWindowPosition);
+    class_ViewportWidget.def("getMousePosition", &editor::ViewportWidget::getMousePosition);
+    class_ViewportWidget.def("isWindowHovered", &editor::ViewportWidget::isWindowHovered);
+    class_ViewportWidget.def("isWindowFocused", &editor::ViewportWidget::isWindowFocused);
 
     py::class_<editor::RDGViewerWidget> class_RDGViewerWidget(m, "RDGViewerWidget");
     py::class_<editor::StatusWidget> class_StatusWidget(m, "StatusWidget");
@@ -201,6 +205,7 @@ PYBIND11_MODULE(pyeditor, m) {
     class_EditorBase.def_static("getViewportWidget", &editor::EditorBase::getViewportWidget, py::return_value_policy::reference);
     class_EditorBase.def_static("getRDGViewerWidget", &editor::EditorBase::getRDGViewerWidget, py::return_value_policy::reference);
     class_EditorBase.def_static("getStatusWidget", &editor::EditorBase::getStatusWidget, py::return_value_policy::reference);
+    class_EditorBase.def_static("fetchInput", &editor::EditorBase::fetchInput, py::return_value_policy::reference);
     class_EditorBase.def_static("bindInput", &editor::EditorBase::bindInput);
     class_EditorBase.def_static("bindTimer", &editor::EditorBase::bindTimer);
     class_EditorBase.def_static("bindPipeline", &editor::EditorBase::bindPipeline);

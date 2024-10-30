@@ -185,6 +185,13 @@ PYBIND11_MODULE(pycore, m) {
   // Export input struct
   // ------------------------------------------------------------------------
   py::class_<se::input> class_input(m, "input");
+  py::class_<se::input::CodeEnum> class_CodeEnum(class_input, "CodeEnum");
+  class_input
+    .def_property_readonly_static("mouse_button_left", [](py::object const&) { return se::input::mouse_button_left; })
+    .def_property_readonly_static("mouse_button_right", [](py::object const&) { return se::input::mouse_button_right; })
+    .def_property_readonly_static("mouse_button_middle", [](py::object const&) { return se::input::mouse_button_middle; })
+    .def_property_readonly_static("mouse_button_last", [](py::object const&) { return se::input::mouse_button_last; })
+    .def("isMouseButtonPressed", &se::input::isMouseButtonPressed);
 
   // Export timer struct
   // ------------------------------------------------------------------------
@@ -349,7 +356,27 @@ PYBIND11_MODULE(pycore, m) {
     .value("DONT_CARE", se::rhi::StoreOp::DONT_CARE)
     .value("STORE", se::rhi::StoreOp::STORE)
     .value("DISCARD", se::rhi::StoreOp::DISCARD);
-  
+  py::enum_<se::rhi::BlendOperation>(namespace_rhi, "BlendOperation")
+    .value("ADD", se::rhi::BlendOperation::ADD)
+    .value("SUBTRACT", se::rhi::BlendOperation::SUBTRACT)
+    .value("REVERSE_SUBTRACT", se::rhi::BlendOperation::REVERSE_SUBTRACT)
+    .value("MIN", se::rhi::BlendOperation::MIN)
+    .value("MAX", se::rhi::BlendOperation::MAX);
+  py::enum_<se::rhi::BlendFactor>(namespace_rhi, "BlendFactor")
+    .value("ZERO", se::rhi::BlendFactor::ZERO)
+    .value("ONE", se::rhi::BlendFactor::ONE)
+    .value("SRC", se::rhi::BlendFactor::SRC)
+    .value("ONE_MINUS_SRC", se::rhi::BlendFactor::ONE_MINUS_SRC)
+    .value("SRC_ALPHA", se::rhi::BlendFactor::SRC_ALPHA)
+    .value("ONE_MINUS_SRC_ALPHA", se::rhi::BlendFactor::ONE_MINUS_SRC_ALPHA)
+    .value("DST", se::rhi::BlendFactor::DST)
+    .value("ONE_MINUS_DST", se::rhi::BlendFactor::ONE_MINUS_DST)
+    .value("DST_ALPHA", se::rhi::BlendFactor::DST_ALPHA)
+    .value("ONE_MINUS_DST_ALPHA", se::rhi::BlendFactor::ONE_MINUS_DST_ALPHA)
+    .value("SRC_ALPHA_SATURATED", se::rhi::BlendFactor::SRC_ALPHA_SATURATED)
+    .value("CONSTANT", se::rhi::BlendFactor::CONSTANT)
+    .value("ONE_MINUS_CONSTANT", se::rhi::BlendFactor::ONE_MINUS_CONSTANT);
+
   // Export rhi::context structures
   // ------------------------------------------------------------------------
   py::class_<se::rhi::Context> class_rhi_context(namespace_rhi, "Context");
@@ -755,6 +782,7 @@ PYBIND11_MODULE(pycore, m) {
     .def("createTexcoord", &se::gfx::Scene::createTexcoord)
     .def("getSceneLightCounts", &se::gfx::Scene::getSceneLightCounts)
     .def("getEditorActiveCameraIndex", &se::gfx::Scene::getEditorActiveCameraIndex)
+    .def("getDefaultResolution", &se::gfx::Scene::getDefaultResolution)
     .def("getGPUScene", &se::gfx::Scene::getGPUScene, py::return_value_policy::reference)
     .def("serialize", static_cast<void(se::gfx::Scene::*)(std::string const&)>(&se::gfx::Scene::serialize));
   
@@ -869,7 +897,11 @@ PYBIND11_MODULE(pycore, m) {
     .def("setDepthCompareFn", &se::rdg::TextureInfo::ConsumeEntry::setDepthCompareFn, py::return_value_policy::reference)
     .def("setSubresource", &se::rdg::TextureInfo::ConsumeEntry::setSubresource, py::return_value_policy::reference)
     .def("setAttachmentLoc", &se::rdg::TextureInfo::ConsumeEntry::setAttachmentLoc, py::return_value_policy::reference)
+    .def("setBlendOperation", &se::rdg::TextureInfo::ConsumeEntry::setBlendOperation, py::return_value_policy::reference)
+    .def("setSourceBlenderFactor", &se::rdg::TextureInfo::ConsumeEntry::setSourceBlenderFactor, py::return_value_policy::reference)
+    .def("setTargetBlenderFactor", &se::rdg::TextureInfo::ConsumeEntry::setTargetBlenderFactor, py::return_value_policy::reference)
     .def("setAccess", &se::rdg::TextureInfo::ConsumeEntry::setAccess, py::return_value_policy::reference);
+
     //.def(py::init<se::rdg::TextureInfo::ConsumeType, rhi::AccessFlags, rhi::PipelineStages,
     //  uint32_t, uint32_t, uint32_t, uint32_t, rhi::TextureLayout, bool, rhi::CompareFunction, uint32_t>(),
     //  py::arg("type"), py::arg("access") = 0, py::arg("stages") = 0,
@@ -908,6 +940,8 @@ PYBIND11_MODULE(pycore, m) {
     .def("issueDirectDrawcalls", &se::rdg::RenderPass::issueDirectDrawcalls)
     .def("init", static_cast<void(se::rdg::RenderPass::*)(
       gfx::ShaderModule*, gfx::ShaderModule*)>(&se::rdg::RenderPass::init))
+    .def("init", static_cast<void(se::rdg::RenderPass::*)(
+      gfx::ShaderModule*, gfx::ShaderModule*, gfx::ShaderModule*)>(&se::rdg::RenderPass::init))
     .def("beginPass", static_cast<rhi::RenderPassEncoder* (se::rdg::RenderPass::*)(
       rdg::RenderContext*, gfx::Texture*)>(&se::rdg::RenderPass::beginPass), 
       py::return_value_policy::reference)

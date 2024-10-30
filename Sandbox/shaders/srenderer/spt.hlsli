@@ -89,7 +89,7 @@ struct MediumPacket {
     enum MediumType {
         HOMOGENEOUS,
         GRID_MEDIUM,
-        HETEROGENEOUS,
+        RGBGRID_MEDIUM,
         MAX_ENUM,
     };
 
@@ -111,6 +111,10 @@ struct MediumPacket {
     int le_offset;
     int3 majorant_xyz;
     int majorant_offset;
+    float3 temperature_bound_min;
+    float temperature_start;
+    float3 temperature_bound_max;
+    float pdadding;
     float4 transform[3];
     float4 transformInverse[3];
     
@@ -119,9 +123,9 @@ struct MediumPacket {
     float3 get_sigma_s() { return sigma_s * scale; }
     float3 get_sigma_t() { return sigma_a * scale + sigma_s * scale; }
     MediumType get_medium_type() { return medium_type; }
-
-    float4x4 medium_to_world() { return transpose(float4x4(transform[0], transform[1], transform[2], float4(0, 0, 0, 1))); }
-    float4x4 world_to_medium() { return transpose(float4x4(transformInverse[0], transformInverse[1], transformInverse[2], float4(0, 0, 0, 1))); }
+    
+    float4x4 medium_to_world() { return transpose(float4x4(transformInverse[0], transformInverse[1], transformInverse[2], float4(0, 0, 0, 1))); }
+    float4x4 world_to_medium() { return transpose(float4x4(transform[0], transform[1], transform[2], float4(0, 0, 0, 1))); }
 };
 
 bool IsValidMedium(MediumPacket medium) {
@@ -222,7 +226,7 @@ Ray SpawnVisibilityRay(
     float3 dir = position - isect.position;
     float distance = length(dir);
     Ray visiblityRay = SpawnRay(isect, dir / distance);
-    visiblityRay.tMax = distance - min(0.01, distance * 0.02);
+    visiblityRay.tMax = distance - min(0.001, distance * 0.002);
     return visiblityRay;
 }
 

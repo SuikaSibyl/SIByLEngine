@@ -314,6 +314,8 @@ namespace tiny_pbrt_loader {
 
     void ReportUnused() const;
 
+    std::vector<Float> const& GetAllFloats(const std::string& name) const;
+
     // ParameterDictionary Private Methods
     template <ParameterType PT>
     typename ParameterTypeTraits<PT>::ReturnType lookupSingle(
@@ -350,7 +352,8 @@ namespace tiny_pbrt_loader {
   };
 
   struct MediumSceneEntity : public SceneEntity {
-
+    TransformData renderFromObject;
+    TransformData objectFromRender;
   };
 
   struct TextureSceneEntity : public SceneEntity {
@@ -392,5 +395,5 @@ namespace tiny_pbrt_loader {
     std::vector<std::pair<std::string, SceneEntity>> namedMaterials;
   };
 
-  std::unique_ptr<BasicScene> load_scene_from_string(std::string str);
+  std::unique_ptr<BasicScene> load_scene_from_string(std::string str, std::string dir_path = "");
 }

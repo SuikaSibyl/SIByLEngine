@@ -3,6 +3,7 @@
 
 #include "materials/lambertian.hlsli"
 #include "materials/conductor.hlsli"
+#include "materials/plastic.hlsli"
 
 namespace materials {
 ibsdf::sample_out bsdf_sample(ibsdf::sample_in i, MaterialData material, float2 uv) {
@@ -10,6 +11,7 @@ ibsdf::sample_out bsdf_sample(ibsdf::sample_in i, MaterialData material, float2 
     switch (material.bxdf_type) {
     case 0: return LambertianBRDF::sample(i, LambertMaterial(material, uv));
     case 1: return ConductorBRDF::sample(i, ConductorMaterial(material));
+    case 2: return PlasticBRDF::sample(i, PlasticMaterial(material, uv));
     }
     return o;
 }
@@ -19,6 +21,7 @@ float bsdf_sample_pdf(ibsdf::pdf_in i, MaterialData material, float2 uv) {
     switch (material.bxdf_type) {
     case 0: return LambertianBRDF::pdf(i, LambertMaterial(material, uv));
     case 1: return ConductorBRDF::pdf(i, ConductorMaterial(material));
+    case 2: return PlasticBRDF::pdf(i, PlasticMaterial(material, uv));
     }
     return 0.f;
 }
@@ -27,6 +30,7 @@ float3 bsdf_eval(ibsdf::eval_in i, MaterialData material, float2 uv) {
     switch (material.bxdf_type) {
     case 0: return LambertianBRDF::eval(i, LambertMaterial(material, uv));
     case 1: return ConductorBRDF::eval(i, ConductorMaterial(material));
+    case 2: return PlasticBRDF::eval(i, PlasticMaterial(material, uv));
     }
     return float3(0, 0, 0);
 }

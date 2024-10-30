@@ -80,6 +80,21 @@ auto TextureInfo::ConsumeEntry::setAccess(uint32_t acc) noexcept -> ConsumeEntry
   return *this;
 }
 
+auto TextureInfo::ConsumeEntry::setBlendOperation(rhi::BlendOperation operation) noexcept -> ConsumeEntry& {
+  bldOperation = operation;
+  return *this;
+}
+
+auto TextureInfo::ConsumeEntry::setSourceBlenderFactor(rhi::BlendFactor factor) noexcept -> ConsumeEntry& {
+  srcFactor = factor;
+  return *this;
+}
+
+auto TextureInfo::ConsumeEntry::setTargetBlenderFactor(rhi::BlendFactor factor) noexcept -> ConsumeEntry& {
+  dstFactor = factor;
+  return *this;
+}
+
 auto TextureInfo::consume(ConsumeEntry const& _entry) noexcept -> TextureInfo& {
   ConsumeEntry entry = _entry;
   if (entry.type == ConsumeType::ColorAttachment) {
@@ -280,7 +295,10 @@ auto PassReflection::getColorTargetState() noexcept
           if (history.type != TextureInfo::ConsumeType::ColorAttachment)
             continue;
           cts.resize(history.attachLoc + 1);
-          cts[history.attachLoc] = rhi::ColorTargetState{pair.second.info.texture.format};
+          cts[history.attachLoc] = rhi::ColorTargetState{
+            pair.second.info.texture.format,
+            rhi::BlendState{history.bldOperation, history.srcFactor,history.dstFactor}
+          };
         }
       }
     }
@@ -638,6 +656,32 @@ auto RenderPass::init(gfx::ShaderModule* vertex, gfx::ShaderModule* fragment) no
       rhi::FragmentState{// fragment shader
                          fragment->shaderModule.get(), "main",
                          pReflection.getColorTargetState()}};
+  for (int i = 0; i < MULTIFRAME_FLIGHTS_COUNT; ++i) {
+    pipelines[i] = device->createRenderPipeline(pipelineDesc);
+  }
+}
+
+auto RenderPass::init(gfx::ShaderModule* vertex,
+  gfx::ShaderModule* geometry,
+  gfx::ShaderModule* fragment) noexcept -> void {
+  PipelinePass::init(
+    std::vector<gfx::ShaderModule*>{vertex, geometry, fragment});
+  rhi::Device* device = gfx::GFXContext::device;
+  rhi::RenderPipelineDescriptor pipelineDesc = rhi::RenderPipelineDescriptor{
+      pipelineLayout.get(),
+      rhi::VertexState{// vertex shader
+                       vertex->shaderModule.get(),
+                       "main",
+                       // vertex attribute layout
+                       {}},
+      rhi::PrimitiveState{rhi::PrimitiveTopology::TRIANGLE_LIST,
+                          rhi::IndexFormat::UINT16_t},
+      pReflection.getDepthStencilState(),
+      rhi::MultisampleState{},
+      rhi::FragmentState{// fragment shader
+                         fragment->shaderModule.get(), "main",
+                         pReflection.getColorTargetState()} };
+  pipelineDesc.geometry = { geometry->shaderModule.get() };
   for (int i = 0; i < MULTIFRAME_FLIGHTS_COUNT; ++i) {
     pipelines[i] = device->createRenderPipeline(pipelineDesc);
   }

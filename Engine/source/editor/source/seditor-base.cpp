@@ -45,6 +45,10 @@ namespace se::editor {
     viewportWidget.bindInput(input);
   }
   
+  auto EditorBase::fetchInput() noexcept -> se::input* {
+    return viewportWidget.controller.input;
+  }
+
   auto EditorBase::bindTimer(se::timer* timer) noexcept -> void {
     viewportWidget.bindTimer(timer);
     statusWidget.timer = timer;
