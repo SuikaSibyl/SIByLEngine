@@ -21,6 +21,7 @@ enum InspectorMode {
     BARYCENTRIC,
     NORMAL,
     POSITION,
+    ADDITIONAL_TEXTURE,
 };
 
 RWTexture2D<float4> output;
@@ -81,6 +82,11 @@ float3 inspector_pt(
         case InspectorMode::EMISSION: {
             if (mat == none) return float3(1, 0, 1);
             output = materials::emission(mat.value); break;
+        }
+        case InspectorMode::ADDITIONAL_TEXTURE: {
+            if (mat == none) return float3(1, 0, 1);
+            if (mat.value.ext1_tex == -1) return float3(1, 0, 0);
+            output = SampleTexture2D(mat.value.ext1_tex, texcoord, true).rgb; break;
         }
         case InspectorMode::FACEFORWARD: output = IsFaceForward(payload.hit) ? float3(0, 1, 0) : float3(1, 0, 0); break;
         case InspectorMode::BARYCENTRIC: output = float3(payload.hit.texcoord, 0); break;

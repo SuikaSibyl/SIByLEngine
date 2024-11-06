@@ -328,18 +328,107 @@ auto drawCustomColume(const std::string& label, float columeWidth,
 
 auto drawTextureViewer(gfx::TextureHandle texture) noexcept -> void {
   static bool draw_gizmo = true;
-  ImGui::PushItemWidth(ImGui::GetFontSize() * -12);
-  if (ImGui::Button("capture")) {
+
+  if (texture->type == gfx::Texture::TextureType::vkTexture) {
+    ImGui::PushItemWidth(ImGui::GetFontSize() * -12);
+    if (ImGui::Button("capture")) {
+      if (texture.get()) {
+        gfx::captureImage(texture);
+      }
+    }
+
     if (texture.get()) {
-      gfx::captureImage(texture);
+      ImGui::Image(
+        se::editor::ImGuiContext::getImGuiTexture(texture)->getTextureID(),
+        { (float)texture->texture->width(), (float)texture->texture->height() },
+        { 0, 0 }, { 1, 1 });
     }
   }
-  
-  if (texture.get()) {
-    ImGui::Image(
-      se::editor::ImGuiContext::getImGuiTexture(texture)->getTextureID(),
-      {(float)texture->texture->width(), (float)texture->texture->height()},
-      {0, 0}, {1, 1});
+  else {
+    ImGui::Text("Buffer-Based Texture");
+
+  }
+}
+
+auto drawTextureViewerEnableCreation(gfx::TextureHandle* texture) noexcept -> void {
+  if (texture->get() == nullptr) {
+    if (ImGui::Button("Assign.."))
+      ImGui::OpenPopup("texture_assign_popup");
+    ImGui::SameLine();
+    if (ImGui::BeginPopup("texture_assign_popup")) {
+      if (ImGui::Selectable("From File")) {
+
+      }
+      // Create the texture from description
+      if (ImGui::Button("From Desc"))
+        ImGui::OpenPopup("texture_assign_desc_popup");
+      static rhi::TextureDescriptor desc = {{ 512, 512, 0 }, };
+      static float default_value = 0.5f;
+      static int gradient_replica = 1;
+      if (ImGui::BeginPopup("texture_assign_desc_popup", ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_HorizontalScrollbar)) {
+        if (ImGui::BeginTable("table2", 2, ImGuiTableFlags_SizingFixedFit)) {
+          ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthFixed);
+          ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthFixed);
+          { // gradient info
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::Text("Gradient Replica");
+            ImGui::TableNextColumn();
+            ImGui::SetNextItemWidth(150);
+            ImGui::DragInt("##Gradient Replica", &gradient_replica);
+          }
+          { // default value
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::Text("Default Value");
+            ImGui::TableNextColumn();
+            ImGui::SetNextItemWidth(150);
+            ImGui::DragFloat("##Default Value", &default_value);
+          }
+          { // width
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::Text("width");
+            ImGui::TableNextColumn();
+            int size_width = int(desc.size.width);
+            ImGui::SetNextItemWidth(150);
+            ImGui::DragInt("##width", &size_width);
+            desc.size.width = uint32_t(size_width);
+          }
+          { // height
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::Text("height");
+            ImGui::TableNextColumn();
+            int size_height = int(desc.size.height);
+            ImGui::SetNextItemWidth(150);
+            ImGui::DragInt("##height", &size_height);
+            desc.size.height = uint32_t(size_height);
+          }
+          { // array
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::Text("channel");
+            ImGui::TableNextColumn();
+            int size_channel = int(desc.arrayLayerCount);
+            ImGui::SetNextItemWidth(150);
+            ImGui::DragInt("##channel", &size_channel);
+            desc.arrayLayerCount = uint32_t(size_channel);
+          }
+          ImGui::EndTable();
+        }
+
+        if (ImGui::Selectable("Create Buf-Texture")) {
+          *texture = gfx::GFXContext::create_buf_texture_desc(desc, default_value);
+        }
+        ImGui::EndPopup();
+      }
+      
+      ImGui::EndPopup();
+    }
+  }
+  else {
+    drawTextureViewer(*texture);
   }
 }
 
@@ -363,6 +452,13 @@ auto drawMaterialEditor(gfx::MaterialHandle material) {
             material->baseOrDiffuseColor = { basecolor[0], basecolor[1], basecolor[2] };
             if (scene.get()) scene->dirtyFlags |= (uint32_t)gfx::Scene::DirtyFlagBit::Material;
           }
+          ImGui::TableNextRow();
+          ImGui::TableNextColumn();
+          ImGui::Text("Albedo Texture");
+          ImGui::TableNextColumn();
+          ImGui::PushID("albedo-map");
+          drawTextureViewerEnableCreation(&(material->basecolorTex));
+          ImGui::PopID();
         }
         { // emission
           ImGui::TableNextRow();
@@ -378,6 +474,15 @@ auto drawMaterialEditor(gfx::MaterialHandle material) {
             material->emissiveColor = { emission[0], emission[1], emission[2] };
             if (scene.get()) scene->dirtyFlags |= (uint32_t)gfx::Scene::DirtyFlagBit::Material;
           }
+        }
+        { // additional
+          ImGui::TableNextRow();
+          ImGui::TableNextColumn();
+          ImGui::Text("Aux Texture");
+          ImGui::TableNextColumn();
+          ImGui::PushID("aux-map");
+          drawTextureViewerEnableCreation(&(material->additionalTex));
+          ImGui::PopID();
         }
         ImGui::EndTable();
     }

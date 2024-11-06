@@ -428,6 +428,9 @@ struct Frame {
         y = frame[1];
     }
 
+    static Frame from_float3x3(float3x3 frame) { return Frame(frame); }
+    static Frame from_normal(float3 normal) { return Frame(createFrame(normal)); }
+
     [mutating]
     void flip() {
         n = -n;
@@ -534,6 +537,7 @@ struct bounds3 {
     bool intersect_p(
         float3 o, float3 d, float tMax,
         out float hitt0, out float hitt1) {
+        hitt0 = -k_inf; hitt1 = -k_inf;
         float t0 = 0; float t1 = tMax;
         for (int i = 0; i < 3; ++i) {
             // Update interval for ith bounding box slab

@@ -110,6 +110,9 @@ Scene::Scene() {
   gpuScene.grid_storage_buffer = GFXContext::load_buffer_empty();
   gpuScene.lbvh.light_bvh_buffer = GFXContext::load_buffer_empty();
   gpuScene.lbvh.light_trail_buffer = GFXContext::load_buffer_empty();
+  gpuScene.diff_params.packet_buffer = GFXContext::load_buffer_empty();
+  gpuScene.diff_params.primal_buffer = GFXContext::load_buffer_empty();
+  gpuScene.diff_params.gradient_buffer = GFXContext::load_buffer_empty();
   gpuScene.camera_buffer->host.resize(sizeof(Scene::CameraData));
   gpuScene.scene_desc_buffer->host.resize(sizeof(Scene::SceneDescription));
   gpuScene.position_buffer->usages =
@@ -159,6 +162,11 @@ Scene::Scene() {
   gpuScene.lbvh.light_trail_buffer->usages =
     (uint32_t)rhi::BufferUsageBit::SHADER_DEVICE_ADDRESS |
     (uint32_t)rhi::BufferUsageBit::STORAGE;
+  gpuScene.diff_params.packet_buffer->usages =
+    (uint32_t)rhi::BufferUsageBit::SHADER_DEVICE_ADDRESS |
+    (uint32_t)rhi::BufferUsageBit::STORAGE;
+  gpuScene.diff_params.primal_buffer->usages = (uint32_t)rhi::BufferUsageBit::STORAGE;
+  gpuScene.diff_params.gradient_buffer->usages = (uint32_t)rhi::BufferUsageBit::STORAGE;
 }
 
 Scene::~Scene() {
@@ -284,6 +292,38 @@ auto Scene::serialize() noexcept -> tinygltf::Model {
     return accessor_id;
   };
 
+  auto add_differentiable_parameter = [&](DifferentiableParameter* params) -> tinygltf::Value {
+    tinygltf::Value::Object diff_param_extra;
+    diff_param_extra["dim_0"] = tinygltf::Value(int(params->packet.dim_0));
+    diff_param_extra["dim_1"] = tinygltf::Value(int(params->packet.dim_1));
+    diff_param_extra["dim_2"] = tinygltf::Value(int(params->packet.dim_2));
+    diff_param_extra["dim_replica"] = tinygltf::Value(int(params->packet.dim_replica));
+    diff_param_extra["default_value"] = tinygltf::Value(float(params->packet.default_value));
+    return tinygltf::Value(diff_param_extra);
+  };
+
+  std::unordered_map<Texture*, int32_t> texture_map;
+  auto add_texture = [&](Texture* texture) -> int {
+    if (texture == nullptr) return -1;
+    auto iter = texture_map.find(texture);
+    if (iter != texture_map.end()) {
+      return iter->second;
+    }
+    int texture_id = m.textures.size();
+    tinygltf::Texture gltf_texture;
+    tinygltf::Value::Object gltf_texture_extra;
+    gltf_texture_extra["type"] = tinygltf::Value(int(texture->type));
+    if (texture->type == Texture::TextureType::bufTexture) {
+      gltf_texture_extra["dparam"] = add_differentiable_parameter(&(texture->bufTex.value()));
+    }
+
+    gltf_texture.extras = tinygltf::Value(gltf_texture_extra);
+
+    m.textures.push_back(gltf_texture);
+    texture_map[texture] = texture_id;
+    return texture_id;
+  };
+
   std::unordered_map<Material*, int32_t> material_map;
   auto add_material = [&](Material* material) -> int {
     if (material == nullptr) return -1;
@@ -302,6 +342,20 @@ auto Scene::serialize() noexcept -> tinygltf::Model {
         material->emissiveColor.r, material->emissiveColor.g,
         material->emissiveColor.b
     };
+
+    tinygltf::Value::Object material_extra;
+
+    // check additionalTex
+    if (material->basecolorTex.get() != nullptr) {
+      gltf_material.pbrMetallicRoughness.baseColorTexture.index = add_texture(material->basecolorTex.get());
+    }
+    // check additionalTex
+    if (material->additionalTex.get() != nullptr) {
+      material_extra["additional_tex"] = tinygltf::Value(add_texture(material->additionalTex.get()));
+    }
+
+    gltf_material.extras = tinygltf::Value(material_extra);
+
     m.materials.push_back(gltf_material);
     material_map[material] = material_id;
     return material_id;
@@ -883,6 +937,10 @@ auto Scene::updateGPUScene() noexcept -> void {
   // also update the light bvh
   gpuScene.lbvh.light_bvh_buffer->hostToDevice();
   gpuScene.lbvh.light_trail_buffer->hostToDevice();
+
+  gpuScene.diff_params.packet_buffer->hostToDevice();
+  gpuScene.diff_params.primal_buffer->createDevice();
+  gpuScene.diff_params.gradient_buffer->createDevice();
     
   // also update the ray tracing data structures
   gpuScene.tlas.desc = {};
@@ -1040,6 +1098,18 @@ auto Scene::GPUScene::bindingResourceLightTrail() noexcept -> rhi::BindingResour
   return rhi::BindingResource{ {lbvh.light_trail_buffer->buffer.get(), 0, lbvh.light_trail_buffer->buffer->size()} };
 }
 
+auto Scene::GPUScene::bindingResourceParamPacket() noexcept -> rhi::BindingResource {
+  return rhi::BindingResource{ {diff_params.packet_buffer->buffer.get(), 0, diff_params.packet_buffer->buffer->size()} };
+}
+
+auto Scene::GPUScene::bindingResourceParamPrimal() noexcept -> rhi::BindingResource {
+  return rhi::BindingResource{ {diff_params.primal_buffer->buffer.get(), 0, diff_params.primal_buffer->buffer->size()} };
+}
+
+auto Scene::GPUScene::bindingResourceParamGradient() noexcept -> rhi::BindingResource {
+  return rhi::BindingResource{ {diff_params.gradient_buffer->buffer.get(), 0, diff_params.gradient_buffer->buffer->size()} };
+}
+
 auto Scene::GPUScene::bindingSceneDescriptor() noexcept -> rhi::BindingResource {
   return rhi::BindingResource{ {scene_desc_buffer->buffer.get(), 0, scene_desc_buffer->buffer->size()} };
 }
@@ -1068,17 +1138,90 @@ auto Scene::GPUScene::getIndexBuffer() noexcept -> BufferHandle {
   return index_buffer;
 }
 
-auto Scene::GPUScene::try_fetch_texture_index(TextureHandle& handle) noexcept -> int {
+auto Scene::GPUScene::export_param_primal() noexcept -> BufferHandle {
+  return diff_params.primal_buffer;
+}
+
+auto Scene::GPUScene::export_param_gradient() noexcept -> BufferHandle {
+  return diff_params.gradient_buffer;
+}
+
+auto Scene::GPUScene::export_texture_parameters() 
+noexcept -> std::vector<DifferentiableParameter::Packet> {
+  std::vector<DifferentiableParameter::Packet> packets(diff_params.texture_loc_index.size());
+  std::span<DifferentiableParameter::Packet> packets_span = 
+    std::span<DifferentiableParameter::Packet>(
+      (DifferentiableParameter::Packet*)diff_params.packet_buffer->host.data(),
+      diff_params.packet_buffer->host.size() / sizeof(DifferentiableParameter::Packet)
+  );
+  int i = 0;
+  for (auto pair : diff_params.texture_loc_index) {
+    const int index = pair.second.first;
+    packets[i++] = packets_span[index];
+  }
+  return packets;
+}
+
+auto Scene::GPUScene::DiffParamPool::push_back_parameter(
+  DifferentiableParameter::Packet const& in_packet, std::string const& name) noexcept -> int {
+  DifferentiableParameter::Packet packet = in_packet;
+  // first allocate the primal buffer
+  int pirmal_size = in_packet.dim_0 * in_packet.dim_1 * in_packet.dim_2;
+  int primal_offset = primal_buffer->host.size() / sizeof(float);
+  primal_buffer->host.resize(sizeof(float) * (primal_offset + pirmal_size));
+  std::span<float> primals_floats = std::span<float>{ 
+    (float*)&(primal_buffer->host[sizeof(float) * primal_offset]), (size_t)pirmal_size};
+  for (auto& primal_element : primals_floats)
+    primal_element = in_packet.default_value;
+  packet.offset_primal = primal_offset;
+  primal_buffer->host_stamp++;
+
+  // second allocate the gradient buffer
+  int gradient_size = pirmal_size * in_packet.dim_replica;
+  int gradient_offset = gradient_buffer->host.size() / sizeof(float);
+  gradient_buffer->host.resize(sizeof(float) * (gradient_offset + gradient_size));
+  std::span<float> gradients_floats = std::span<float>{
+    (float*)&(gradient_buffer->host[sizeof(float) * gradient_offset]), (size_t)gradient_size };
+  packet.offset_grad = gradient_offset; 
+  gradient_buffer->host_stamp++;
+
+  // lastly allocate the packet buffer
+  int index = packet_buffer->host.size() / sizeof(DifferentiableParameter::Packet);
+  packet_buffer->host.resize(sizeof(DifferentiableParameter::Packet) * (index + 1));
+  DifferentiableParameter::Packet* ref = (DifferentiableParameter::Packet*)
+    &(packet_buffer->host[sizeof(DifferentiableParameter::Packet) * index]);
+  *ref = packet; packet_buffer->host_stamp++;
+
+  return index;
+}
+
+auto Scene::GPUScene::DiffParamPool::try_fetch_texture_index(TextureHandle& handle) noexcept -> int {
   auto iter = texture_loc_index.find(handle.ruid);
   if (iter == texture_loc_index.end()) {
-    int index = texture_loc_index.size();
+    int index = push_back_parameter(handle->bufTex->packet, "texture" + std::to_string(texture_loc_index.size()));
     texture_loc_index[handle.ruid] = { index, handle };
-    texp.prim_t.push_back(handle->getSRV(0, 1, 0, 1));
-    SamplerHandle sampler = GFXContext::create_sampler_desc(rhi::SamplerDescriptor{});
-    texp.prim_s.push_back(sampler.get());
     return index;
   }
   return iter->second.first;
+}
+
+auto Scene::GPUScene::try_fetch_texture_index(TextureHandle& handle) noexcept -> int {
+  if (handle->type == Texture::TextureType::vkTexture) {
+    auto iter = texture_loc_index.find(handle.ruid);
+    if (iter == texture_loc_index.end()) {
+      int index = texture_loc_index.size();
+      texture_loc_index[handle.ruid] = { index, handle };
+      texp.prim_t.push_back(handle->getSRV(0, 1, 0, 1));
+      SamplerHandle sampler = GFXContext::create_sampler_desc(rhi::SamplerDescriptor{});
+      texp.prim_s.push_back(sampler.get());
+      return index;
+    }
+    return iter->second.first;
+  }
+  else if (handle->type == Texture::TextureType::bufTexture) {
+    return diff_params.try_fetch_texture_index(handle);
+  }
+  return -1;
 }
 
 auto Scene::GPUScene::try_fetch_material_index(MaterialHandle& handle) noexcept -> int {
@@ -1088,8 +1231,16 @@ auto Scene::GPUScene::try_fetch_material_index(MaterialHandle& handle) noexcept 
     material_loc_index[handle.ruid] = { index, handle };
     material_buffer->host.resize(sizeof(Material::MaterialPacket) * (index + 1));
     Material::MaterialPacket pack = handle->getDataPacket();
-    if (handle->basecolorTex.get())
+    if (handle->basecolorTex.get()) {
       pack.base_tex = try_fetch_texture_index(handle->basecolorTex);
+      if (handle->basecolorTex->type == Texture::TextureType::bufTexture)
+        pack.bitfield |= Material::MaterialFlagBit::Diff_AlbedoTex;
+    }
+    if (handle->additionalTex.get()) {
+      pack.ext1_tex = try_fetch_texture_index(handle->additionalTex);
+      if (handle->additionalTex->type == Texture::TextureType::bufTexture)
+        pack.bitfield |= Material::MaterialFlagBit::Diff_AdditionalTex;
+    }
     memcpy((float*)&(material_buffer->host[sizeof(Material::MaterialPacket) * index]), &pack, sizeof(pack));
     material_buffer->host_stamp++;
     return index;
@@ -1555,6 +1706,18 @@ auto loadGLTFMaterial(tinygltf::Material const* glmaterial, tinygltf::Model cons
         (float)glmaterial->emissiveFactor[1],
         (float)glmaterial->emissiveFactor[2],
     };
+  }
+
+  if (glmaterial->pbrMetallicRoughness.baseColorTexture.index != -1) {
+    mat->basecolorTex = env.textures[&(model->textures[
+      glmaterial->pbrMetallicRoughness.baseColorTexture.index
+    ])];
+  }
+
+  auto& extras = glmaterial->extras;
+  if (extras.Has("additional_tex")) {
+    int tex_id = extras.Get("additional_tex").GetNumberAsInt();
+    mat->additionalTex = env.textures[&(model->textures[tex_id])];
   }
   //{ // load diffuse texture
   //  if (glmaterial->pbrMetallicRoughness.baseColorTexture.index != -1) {
@@ -2735,6 +2898,20 @@ SceneLoader::result_type SceneLoader::operator()(SceneLoader::from_gltf_tag, std
   // -------------------------------------------------------------
   SceneLoader::result_type scene = std::make_shared<Scene>();
   glTFLoaderEnv env;
+
+  for (int i = 0; i < model.textures.size(); ++i) {
+    tinygltf::Texture const& texture_gltf = model.textures[i];
+    if (texture_gltf.extras.Has("dparam")) {
+      tinygltf::Value dparam = texture_gltf.extras.Get("dparam");
+      rhi::TextureDescriptor desc;
+      desc.size.width = dparam.Get("dim_0").GetNumberAsInt();
+      desc.size.height = dparam.Get("dim_1").GetNumberAsInt();
+      desc.arrayLayerCount = dparam.Get("dim_2").GetNumberAsInt();
+      float default_value = float(dparam.Get("default_value").GetNumberAsDouble());
+      TextureHandle texture = gfx::GFXContext::create_buf_texture_desc(desc, default_value);
+      env.textures[&texture_gltf] = texture;
+    }
+  }
 
   // load medium if any
   if (model.extras.Has("medium")) {

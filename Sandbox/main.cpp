@@ -43,15 +43,31 @@ std::unique_ptr<se::window> window = se::window::create(se::window::WindowOption
  //std::string path = "D:/Art/Scenes/pbrt-v4-volumes/scenes/ground_explosion/ground_explosion.pbrt";
  //std::string path = "D:/Art/Scenes/living-room-2/scene_v3.xml";
  //std::string path = "P:/GitProjects/lajolla_public/scenes/volpath_test/hetvol.xml";
- std::string path = "D:/Art/Scenes/pbrt-v4-volumes/scenes/rainbow_box/rainbow_box.pbrt";
+ std::string path = "S:/SIByL2024/Sandbox/examples/prb/_data/plane-albedo-diff.gltf";
 
  //std::string path = "P:/GitProjects/lajolla_public/scenes/volpath_test/volpath_test2.gltf";
  //auto scene = se::gfx::GFXContext::load_scene_xml(path);
- auto scene = se::gfx::GFXContext::load_scene_pbrt(path);
- //auto scene = se::gfx::GFXContext::load_scene_gltf(path);
+ //auto scene = se::gfx::GFXContext::load_scene_pbrt(path);
+ auto scene = se::gfx::GFXContext::load_scene_gltf(path);
+  
  scene->updateTransform();
  scene->updateGPUScene();
  int light_counts = scene->getSceneLightCounts();
+
+ auto packets = scene->gpuScene.export_texture_parameters();
+
+ auto a1 = scene->getGPUScene()->export_param_primal();
+ auto a2 = scene->getGPUScene()->export_param_gradient();
+ auto a3 = scene->getGPUScene()->export_texture_parameters();
+
+ for (int i = 0; i < a3.size(); ++i) {
+   auto packet = a3[i];
+
+   auto prim_cu = se::rhi::CUDAContext::toCUDABufferInterval(
+     a1->getDevice(),
+     packet.offset_primal * 4, packet.dim_0 * packet.dim_1 * packet.dim_2 * 4);
+ }
+
 
  //std::vector<float> pmf = { 0.1,0.2,0.3,0.4 };
  //auto pc1d = se::gfx::PMFConstructor::build_piecewise_constant_1d(pmf, 0,1);

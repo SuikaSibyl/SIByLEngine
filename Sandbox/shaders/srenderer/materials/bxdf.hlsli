@@ -38,6 +38,11 @@ struct pdf_in {
     Frame shading_frame;
 };
 
+struct bwd_in {
+    eval_in eval;
+    int hash_value;
+};
+
 struct dsample_out<TBxDFParameter : IBxDFParameter> {
     float3 wo;
     float pdf;

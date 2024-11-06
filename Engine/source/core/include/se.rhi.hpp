@@ -391,6 +391,8 @@ struct SIByL_API Buffer {
   virtual auto bufferMapState() const noexcept -> BufferMapState = 0;
   /** readonly get device */
   virtual auto getDevice() const noexcept -> Device* = 0;
+  /** get the device memory address is applicable */
+  virtual auto getDeviceAddress() const noexcept -> uint64_t = 0;
   /** get the memory handle of the allocated buufer */
   struct ExternalHandle { void* handle; size_t offset; size_t size; };
   virtual auto getMemHandle() const noexcept -> ExternalHandle = 0;
@@ -2004,6 +2006,7 @@ struct SIByL_API CUDAContext {
   static auto initialize(Device* device) noexcept -> void;
   static auto synchronize() noexcept -> void;
   static auto toCUDABuffer(Buffer* buffer) noexcept -> std::unique_ptr<CUDABuffer>;
+  static auto toCUDABufferInterval(Buffer* buffer, int offset, int size) noexcept -> std::unique_ptr<CUDABuffer>;
   static auto allocCUDABuffer(size_t size)noexcept -> std::unique_ptr<CUDABuffer>;
 };
 

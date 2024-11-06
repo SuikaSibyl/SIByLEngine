@@ -11,6 +11,8 @@ from se.editor import *
 import se.pycore as se  
 import se.pyeditor as sed
 from examples.inspector.pipeline import *
+import cv2
+import torch
 
 class EditorApp(EditorApplication):
     def __init__(self):
@@ -29,14 +31,27 @@ class EditorApp(EditorApplication):
         # self.scene = se.gfx.Context.load_scene_xml("P:/GitProjects/lajolla_public/scenes/volpath_test/hetvol.xml")
         # self.scene = se.gfx.Context.load_scene_gltf("D:/Art/Scenes/veach-mis-mitsuba/scene_v3.gltf")
         # self.scene = se.gfx.Context.load_scene_gltf("examples/glt/_data/box.gltf")
-        self.scene = se.gfx.Context.load_scene_xml("D:/Art/Scenes/living-room-3-mitsuba/living-room-3/scene_v3_simple.xml")
-
+        # self.scene = se.gfx.Context.load_scene_xml("D:/Art/Scenes/living-room-3-mitsuba/living-room-3/scene_v3_simple.xml")
+        self.scene = se.gfx.Context.load_scene_gltf("S:/SIByL2024/Sandbox/examples/prb/_data/plane-albedo-diff.gltf")
+        
         # self.scene = se.gfx.Context.load_scene_xml("D:/Art/Scenes/house/scene_v3.xml")
         print("Scene Loaded Successfully!")
         
         sed.EditorBase.bindScene(self.scene)
         self.scene.get().updateTransform()
         self.scene.get().updateGPUScene()
+        
+        # self.params = SESceneParamters(self.scene)
+        # self.optimizer = torch.optim.Adam([
+        #     {'params': self.params.fetch_all_texture_params(), 'lr': 0.1},  # texture elements
+        # ])
+        
+        # # load the image
+        # with torch.no_grad():
+        #     image = cv2.imread("examples/prb/_data/lenna.png")
+        #     # gbr to rgb
+        #     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        #     self.params.fetch_all_texture_params()[0].data.copy_(torch.tensor(image, dtype=torch.float32) / 255.0)
         
         # create and bind the pipeline
         self.pipeline = RenderPipeline()

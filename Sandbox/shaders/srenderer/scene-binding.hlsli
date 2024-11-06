@@ -5,6 +5,7 @@
 #include "common/raycast.hlsli"
 #include "lights/lightbvh.hlsli"
 #include "spt.hlsli"
+#include "spt-diff.hlsli"
 
 /**********************************************************************
 ****                   Common Scene Data Structures                ****
@@ -24,7 +25,6 @@ RWStructuredBuffer<SceneDescription> GPUScene_description;
 RWStructuredBuffer<MediumPacket> GPUScene_medium;
 RWStructuredBuffer<float> GPUScene_grid_storage;
 Sampler2D GPUScene_textures[];
-
 Sampler2D LUT_blackbody_spectrum;
 
 float3 black_body_spectrum(float temperature) {
@@ -85,6 +85,25 @@ float4 sampleTexture(int textureID, float2 uv) {
     if (textureID >= 0)
         return GPUScene_textures[textureID].Sample(uv);
     else return float4(1, 1, 1, 1);
+}
+
+[BackwardDifferentiable]
+float4 SampleTexture2D(int textureID, no_diff float2 uv, bool is_differentiable = false) {
+    if (!is_differentiable) {
+        if (textureID >= 0)
+            return no_diff GPUScene_textures[textureID].Sample(uv);
+        else return float4(1, 1, 1, 1);
+    } else {
+        if (textureID >= 0) {
+            DifferentiableParameter param = GPUScene_param_packets[textureID];
+            float4 texel = float4(0, 0, 0, 1);
+            if (param.dim_2 > 0) texel.x = software_bilinear_interpolation_load(uv, 0, param);
+            if (param.dim_2 > 1) texel.y = software_bilinear_interpolation_load(uv, 1, param);
+            if (param.dim_2 > 2) texel.z = software_bilinear_interpolation_load(uv, 2, param);
+            return texel;
+        }
+        else return float4(1, 1, 1, 1);
+    }
 }
 
 /**

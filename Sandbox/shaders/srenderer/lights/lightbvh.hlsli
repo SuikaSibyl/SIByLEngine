@@ -207,31 +207,6 @@ struct LightBVHNode {
         if (min == max) return 0;
         return 65535.f * clamp((c - min) / (max - min), 0, 1);
     }
-    
-    static LightBVHNode from_lightbounds(LightBounds lb, bounds3 allb) {
-        uint qCosTheta_o = quantize_cos(lb.cosTheta_o);
-        uint qCosTheta_e = quantize_cos(lb.cosTheta_e);
-        uint twoSided = lb.twoSided ? 1 : 0;
-        LightBVHNode node;
-        node.bitfield = (qCosTheta_o << 17) | (qCosTheta_e << 2) | twoSided;
-        node.phi = lb.phi;
-        node.w = UnitVectorToUnorm32Octahedron(normalize(lb.w));
-        // Quantize bounding box into qb
-        uint qb[3];
-        for (int c = 0; c < 3; ++c) {
-            uint qb_lc = uint(floor(quantize_bounds(
-                lb.bounds_min[c], allb.pMin[c], allb.pMax[c])));
-            uint qb_rc = uint(ceil(quantize_bounds(
-                lb.bounds_max[c], allb.pMin[c], allb.pMax[c])));
-            qb[c] = (qb_lc << 16) | qb_rc;
-        }
-        node.qb_0 = qb[0];
-        node.qb_1 = qb[1];
-        node.qb_2 = qb[2];
-    }
-
-    static LightBVHNode make_leaf(uint lightID, LightBounds bounds) {
-    }
 };
 
 DirectionCone union (DirectionCone a, DirectionCone b) {

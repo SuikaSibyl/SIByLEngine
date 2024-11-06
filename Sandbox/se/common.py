@@ -9,6 +9,7 @@ import torch.nn as nn
 from functools import reduce
 import operator
 import ctypes
+from typing import List, Tuple
 
 def get_ptr(obj:ctypes.Structure):
   return core.ptr_from_address(ctypes.addressof(obj))
@@ -117,6 +118,74 @@ class SETensor:
   def get_binding_resource_grad(self) -> core.rhi.BindingResource:
     return core.rhi.BindingResource(core.rhi.BufferBinding(self.grad(), 0, self.grad().size()))
 
+
+class SEParamter:
+  def __init__(
+    self,
+    primal_buffer: core.gfx.BufferHandle,
+    gradient_buffer: core.gfx.BufferHandle,
+    primal_offset: int,
+    gradient_offset: int,
+    shape: List[int],
+    default_value: float = 0.0
+  ):
+    # multiply all the dimensions of the shape
+    self.size = reduce(operator.mul, shape, 1)
+    # create the primal buffer
+    self.prim_se = primal_buffer
+    self.prim_cu = core.rhi.CUDAContext.toCUDABufferInterval(
+      primal_buffer.get().getDevice(),
+      primal_offset * 4, self.size * 4)
+    self.prim_torch = core.rhi.toTensor(
+      self.prim_cu, shape, core.rhi.EnumDataType.Float32)
+    self.prim_torch_param = torch.nn.Parameter(self.prim_torch, requires_grad=True)
+    self.prim_torch_param.data.fill_(default_value)
+
+    # create the gradient buffer
+    self.grad_se = gradient_buffer
+    self.grad_cu = core.rhi.CUDAContext.toCUDABufferInterval(
+      gradient_buffer.get().getDevice(),
+      gradient_offset * 4, self.size * 4)
+    self.grad_torch = core.rhi.toTensor(
+      self.grad_cu, shape, core.rhi.EnumDataType.Float32)
+    self.prim_torch_param.grad = self.grad_torch
+
+  def __del__(self):
+    self.prim_torch_param = None
+    self.prim_torch = None
+    self.grad_torch = None
+    self.prim_cu = None
+    self.grad_cu = None
+    
+  # def prim(self) -> core.rhi.Buffer:
+  #   return self.prim_se
+  # def grad(self) -> core.rhi.Buffer:
+  #   return self.grad_se
+  # def get_binding_resource(self) -> core.rhi.BindingResource:
+  #   return core.rhi.BindingResource(core.rhi.BufferBinding(self.prim(), 0, self.prim().size()))
+  # def get_binding_resource_grad(self) -> core.rhi.BindingResource:
+  #   return core.rhi.BindingResource(core.rhi.BufferBinding(self.grad(), 0, self.grad().size()))
+
+
+class SESceneParamters:
+  def __init__(self, scene:core.gfx.SceneHandle):
+    primal_buffer = scene.get().getGPUScene().export_param_primal()
+    grad_buffer = scene.get().getGPUScene().export_param_gradient()
+    
+    # load texture parameters
+    self.se_params_tex: List[SEParamter] = []
+    texture_params = scene.get().getGPUScene().export_texture_parameters()
+    for i in range(len(texture_params)):
+      packet = texture_params[i]
+      param_i = SEParamter(primal_buffer, grad_buffer, 
+        packet.offset_primal, packet.offset_grad, 
+        [packet.dim_0, packet.dim_1, packet.dim_2], packet.default_value)
+      self.se_params_tex.append(param_i)
+    self.torch_params_tex: List[torch.nn.Parameter] = [param.prim_torch_param for param in self.se_params_tex]
+
+  def fetch_all_texture_params(self):
+    return self.torch_params_tex
+
 class SEApplication:
   def __init__(self):
     self.ctx = SEContext(with_window=True, with_editor=True)
@@ -149,18 +218,6 @@ class SEApplication:
     del self.ctx
     self.ctx = None    
 
-#   def addPass(self, se_pass):
-#     self.passes.append(se_pass)
-  
-#   def run(self):
-#     frameIDX = 0
-#     while True:
-#       self.ctx.multiFrameFlights.frameStart()
-#       cmdEncoder = self.ctx.device.createCommandEncoder(self.ctx.multiFrameFlights.getCommandBuffer())
-#       for se_pass in self.passes:
-#         self.ctx.executeOnePass(se_pass)
-#       self.ctx.device.present(self.ctx.swapchain, frameIDX)
-#       frameIDX = (frameIDX + 1) % 2
 
 class SEActiveImage:
   def __init__(self, ax, W:int, H:int, name, vmin:float, vmax:float, cmap:str) -> None:

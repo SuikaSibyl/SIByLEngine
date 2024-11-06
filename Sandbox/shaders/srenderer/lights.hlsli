@@ -78,7 +78,7 @@ ilight::sample_li_out nee_given_light(ilight::sample_li_in i, LightPacket data) 
         o.valid = true;
         return o;
     }
-    else: break;
+    default: break;
     }
     ilight::sample_li_out o;
     return o;
@@ -123,7 +123,7 @@ float nee_given_light_pdf(ilight::sample_li_pdf_in i, LightPacket data) {
     pdf_in.sample_normal = i.light_normal;
     return Rectangle::sample_pdf(pdf_in, rect);
     }
-    else : break;
+    default : break;
     }
     return 0.f;
 }
@@ -212,6 +212,7 @@ ilight::sample_li_out nee_lbvh(ilight::sample_li_in i, float u, uint factors) {
 ilight::sample_li_out nee_lbvh_with_aux(
     ilight::sample_li_in i, float u, uint factors, out float3 aux
 ) {
+    aux = { 0, 0, 0 };
     int nodeIndex = 0;
     primal_auxiliary<3> pmf = { 1, { 1, 1, 1 } };
     bounds3 allb = fetchAllLightBounds();

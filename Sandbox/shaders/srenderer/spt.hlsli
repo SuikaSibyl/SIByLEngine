@@ -61,6 +61,13 @@ struct MaterialData {
     float4 floatvec_0;
     float4 floatvec_1;
     float4 floatvec_2;
+
+    enum FlagBit {
+        Diff_Albedo_Tex = 1 << 0,
+        Diff_Additional_Tex = 1 << 1,
+    };
+
+    bool is_albedo_tex_differentiable() { return (bitfield & (int)FlagBit::Diff_Albedo_Tex) != 0; }
 };
 
 enum LightType {

@@ -19,6 +19,7 @@ class EditorApplication(SEApplication):
         sed.ImGuiContext.startNewFrame()
         self.flights.frameStart()
         # update anything here
+        self.onFrameBegin()
         self.onUpdate()
         # create a command encoder
         cmdEncoder = self.ctx.device.createCommandEncoder(
@@ -40,6 +41,7 @@ class EditorApplication(SEApplication):
         self.onDrawGui()
         sed.ImGuiContext.render(self.flights.getRenderFinishedSeamaphore())
         
+        self.onFrameEnd()
         self.flights.frameEnd()
 
     def onInit(self):
@@ -49,6 +51,12 @@ class EditorApplication(SEApplication):
         pass
         
     def onDrawGui(self):
+        pass
+        
+    def onFrameBegin(self):
+        pass
+
+    def onFrameEnd(self):
         pass
     
     def onCommandRecord(self, cmdEncoder: se.rhi.CommandEncoder):

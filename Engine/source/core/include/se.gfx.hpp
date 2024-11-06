@@ -150,6 +150,8 @@ struct SIByL_API Buffer : public Resource {
   auto hostToDevice() noexcept -> void;
   /** lazy update host device to host */
   auto deviceToHost() noexcept -> void;
+  /** create device if not exists */
+  auto createDevice() noexcept -> void;
   /** get the host buffer, if not exists fetch from newest device */
   auto getHost() noexcept -> std::vector<unsigned char>&;
   /** get the device buffer, if not exists fetch from newest host */
@@ -199,6 +201,22 @@ struct SIByL_API BufferView {
   };
 };
 
+struct SIByL_API DifferentiableParameter {
+  struct Packet {
+    int dim_0;
+    int dim_1;
+    int dim_2;
+    int dim_replica;
+    int offset_primal;
+    int offset_grad;
+    float default_value;
+    int padding;
+  } packet;
+  // weak pointer to buffer instantiated on
+  Buffer* buffer_prim = nullptr;
+  Buffer* buffer_grad = nullptr;
+};
+
 struct SIByL_API Texture : public Resource {
   /** ctors & rval copies */
   Texture() = default;
@@ -216,6 +234,13 @@ struct SIByL_API Texture : public Resource {
   std::optional<std::vector<std::string>> resourcePathArray;
   /** differentiable attributes */
   uint32_t differentiable_channels = 0u;
+  /** buffer-based texture */
+  std::optional<DifferentiableParameter> bufTex;
+  /** texture type: default vkTex */
+  enum struct TextureType {
+    vkTexture,
+    bufTexture,
+  } type = TextureType::vkTexture;
   /** name */
   std::string name;
   /** get name */
@@ -251,9 +276,11 @@ struct SIByL_API TextureLoader {
 
   struct from_desc_tag {};
   struct from_file_tag {};
+  struct from_desc_buf_tag {};
 
   result_type operator()(from_desc_tag, rhi::TextureDescriptor const& desc);
   result_type operator()(from_file_tag, std::filesystem::path const& path);
+  result_type operator()(from_desc_buf_tag, rhi::TextureDescriptor const& desc, float default_value = 0.5);
 };
 
 // Base class definition
@@ -263,6 +290,10 @@ struct SIByL_API TextureLoader {
 struct SIByL_API Material : public Resource {
   /* cast material to gltf material structure. */
   operator tinygltf::Material() const;
+  enum MaterialFlagBit {
+    Diff_AlbedoTex      = 1 << 0,
+    Diff_AdditionalTex  = 1 << 1,
+  };
   struct MaterialPacket {
     int32_t bxdf_type = 0;
     int32_t bitfield  = 0;
@@ -290,6 +321,7 @@ struct SIByL_API Material : public Resource {
   std::string name;
   TextureHandle basecolorTex;
   TextureHandle normalTex;
+  TextureHandle additionalTex;
 };
 
 struct MaterialHandle {
@@ -694,6 +726,17 @@ struct SIByL_API Scene : public Resource {
       std::vector<rhi::Sampler*> back_s;
     } texp;
 
+    struct SIByL_API DiffParamPool {
+      BufferHandle packet_buffer;
+      BufferHandle primal_buffer;
+      BufferHandle gradient_buffer;
+      
+      std::unordered_map<RUID, std::pair<int, TextureHandle>> texture_loc_index;
+
+      auto push_back_parameter(DifferentiableParameter::Packet const& packet, std::string const& name) noexcept -> int;
+      auto try_fetch_texture_index(TextureHandle& handle) noexcept -> int;
+    } diff_params;
+
     auto bindingResourcePosition() noexcept -> rhi::BindingResource;
     auto bindingResourceIndex() noexcept -> rhi::BindingResource;
     auto bindingResourceVertex() noexcept -> rhi::BindingResource;
@@ -705,14 +748,24 @@ struct SIByL_API Scene : public Resource {
     auto bindingResourceTLAS() noexcept -> rhi::BindingResource;
     auto bindingResourceTLASPrev() noexcept -> rhi::BindingResource;
     auto bindingResourceUvTLAS() noexcept -> rhi::BindingResource;
+
     auto bindingResourceLightBVH() noexcept -> rhi::BindingResource;
     auto bindingResourceLightTrail() noexcept -> rhi::BindingResource;
+
+    auto bindingResourceParamPacket() noexcept -> rhi::BindingResource;
+    auto bindingResourceParamPrimal() noexcept -> rhi::BindingResource;
+    auto bindingResourceParamGradient() noexcept -> rhi::BindingResource;
+
     auto bindingResourceTextures() noexcept -> rhi::BindingResource;
     auto bindingResourceGrids() noexcept -> rhi::BindingResource;
     auto bindingSceneDescriptor() noexcept -> rhi::BindingResource;
 
     auto getPositionBuffer() noexcept -> BufferHandle;
     auto getIndexBuffer() noexcept -> BufferHandle;
+
+    auto export_param_primal() noexcept -> BufferHandle;
+    auto export_param_gradient() noexcept -> BufferHandle;
+    auto export_texture_parameters() noexcept -> std::vector<DifferentiableParameter::Packet>;
 
     // private
     std::unordered_map<RUID, std::pair<int, MaterialHandle>> material_loc_index;
@@ -826,6 +879,10 @@ struct SIByL_API GFXContext {
   ) noexcept -> TextureHandle;
   static auto create_texture_file(
     std::string const& path
+  ) noexcept -> TextureHandle;
+  static auto create_buf_texture_desc(
+    rhi::TextureDescriptor const& desc,
+    float default_value
   ) noexcept -> TextureHandle;
 
   static auto create_sampler_desc(

@@ -710,6 +710,7 @@ PYBIND11_MODULE(pycore, m) {
   class_cudacontext.def_static("initialize", py::overload_cast<se::rhi::Device*>(&se::rhi::CUDAContext::initialize));
   class_cudacontext.def_static("synchronize", &se::rhi::CUDAContext::synchronize);
   class_cudacontext.def_static("toCUDABuffer", &se::rhi::CUDAContext::toCUDABuffer);
+  class_cudacontext.def_static("toCUDABufferInterval", &se::rhi::CUDAContext::toCUDABufferInterval);
   class_cudacontext.def_static("allocCUDABuffer", &se::rhi::CUDAContext::allocCUDABuffer);
 
   // Export rhi::pytorch structures
@@ -775,7 +776,15 @@ PYBIND11_MODULE(pycore, m) {
   
   py::class_<se::gfx::TextureHandle> class_gfx_textureHandle(namespace_gfx, "TextureHandle");
   class_gfx_textureHandle.def("get", &se::gfx::TextureHandle::get, py::return_value_policy::reference);
-  
+
+  py::class_<se::gfx::DifferentiableParameter::Packet> class_gfx_parampacket(namespace_gfx, "ParameterPacket");
+  class_gfx_parampacket.def_readwrite("dim_0", &se::gfx::DifferentiableParameter::Packet::dim_0)
+    .def_readwrite("dim_1", &se::gfx::DifferentiableParameter::Packet::dim_1)
+    .def_readwrite("dim_2", &se::gfx::DifferentiableParameter::Packet::dim_2)
+    .def_readwrite("offset_primal", &se::gfx::DifferentiableParameter::Packet::offset_primal)
+    .def_readwrite("default_value", &se::gfx::DifferentiableParameter::Packet::default_value)
+    .def_readwrite("offset_grad", &se::gfx::DifferentiableParameter::Packet::offset_grad);
+
   py::class_<se::gfx::Scene> class_gfx_scene(namespace_gfx, "Scene");
   class_gfx_scene.def("updateTransform", &se::gfx::Scene::updateTransform)
     .def("updateGPUScene", &se::gfx::Scene::updateGPUScene)
@@ -802,6 +811,9 @@ PYBIND11_MODULE(pycore, m) {
     .def("bindingResourceLight", &se::gfx::Scene::GPUScene::bindingResourceLight)
     .def("bindingResourceLightBVH", &se::gfx::Scene::GPUScene::bindingResourceLightBVH)
     .def("bindingResourceLightTrail", &se::gfx::Scene::GPUScene::bindingResourceLightTrail)
+    .def("bindingResourceParamPacket", &se::gfx::Scene::GPUScene::bindingResourceParamPacket)
+    .def("bindingResourceParamPrimal", &se::gfx::Scene::GPUScene::bindingResourceParamPrimal)
+    .def("bindingResourceParamGradient", &se::gfx::Scene::GPUScene::bindingResourceParamGradient)
     .def("bindingResourceGrids", &se::gfx::Scene::GPUScene::bindingResourceGrids)
     .def("bindingSceneDescriptor", &se::gfx::Scene::GPUScene::bindingSceneDescriptor)
     .def("bindingResourceIndex", &se::gfx::Scene::GPUScene::bindingResourceIndex)
@@ -811,7 +823,10 @@ PYBIND11_MODULE(pycore, m) {
     .def("bindingResourceTLASPrev", &se::gfx::Scene::GPUScene::bindingResourceTLASPrev)
     .def("bindingResourceUvTLAS", &se::gfx::Scene::GPUScene::bindingResourceUvTLAS)
     .def("getPositionBuffer", &se::gfx::Scene::GPUScene::getPositionBuffer)
-    .def("getIndexBuffer", &se::gfx::Scene::GPUScene::getIndexBuffer);
+    .def("getIndexBuffer", &se::gfx::Scene::GPUScene::getIndexBuffer)
+    .def("export_param_primal", &se::gfx::Scene::GPUScene::export_param_primal)
+    .def("export_param_gradient", &se::gfx::Scene::GPUScene::export_param_gradient)
+    .def("export_texture_parameters", &se::gfx::Scene::GPUScene::export_texture_parameters);
 
   py::class_<se::gfx::SceneHandle> class_gfx_sceneHandle(namespace_gfx, "SceneHandle");
   class_gfx_sceneHandle.def("get", &se::gfx::SceneHandle::get, py::return_value_policy::reference);

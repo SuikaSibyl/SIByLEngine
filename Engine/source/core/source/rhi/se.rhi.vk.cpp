@@ -1143,6 +1143,13 @@ auto Buffer_VK::setName(std::string const& name) -> void {
 
 auto Buffer_VK::getName() const noexcept -> std::string const& { return name; }
 
+auto Buffer_VK::getDeviceAddress() const noexcept -> uint64_t {
+  VkBufferDeviceAddressInfo deviceAddressInfo = {};
+  deviceAddressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
+  deviceAddressInfo.buffer = buffer;
+  return vkGetBufferDeviceAddress(device->getVkDevice(), &deviceAddressInfo);
+}
+
 auto Buffer_VK::getMemHandle() const noexcept -> ExternalHandle {
   VmaAllocationInfo allocInfo;
   vmaGetAllocationInfo(device->getVMAAllocator(), allocation, &allocInfo);

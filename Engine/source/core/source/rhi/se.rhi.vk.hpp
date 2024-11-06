@@ -474,6 +474,8 @@ struct SIByL_API Buffer_VK : public Buffer {
   }
   /** readonly get device */
   virtual auto getDevice() const noexcept -> Device* override { return device; }
+  /** get the device memory address is applicable */
+  virtual auto getDeviceAddress() const noexcept -> uint64_t override;
   /** get the memory handle of the allocated buufer */
   virtual auto getMemHandle() const noexcept -> ExternalHandle override;
   // Map methods

@@ -650,6 +650,17 @@ auto Buffer::deviceToHost() noexcept -> void {
   GFXContext::device->readbackDeviceLocalBuffer(buffer.get(), host.data(), buffer->size());
 }
 
+auto Buffer::createDevice() noexcept -> void {
+  if (buffer == nullptr || (buffer->size() != host.size() * sizeof(unsigned char))) {
+    rhi::BufferDescriptor descriptor;
+    descriptor.size = host.size() * sizeof(unsigned char);
+    descriptor.usage = usages;
+    descriptor.memoryProperties = (uint32_t)rhi::MemoryPropertyBit::DEVICE_LOCAL_BIT;
+    descriptor.mappedAtCreation = false;
+    buffer = GFXContext::device->createBuffer(descriptor);
+  }
+}
+
 auto Buffer::getHost() noexcept -> std::vector<unsigned char>& {
   return host;
 }
@@ -802,11 +813,23 @@ auto Texture::getSRV(uint32_t mostDetailedMip, uint32_t mipCount,
 }
 
 auto Texture::getWidth() noexcept -> uint32_t {
-  return texture->width();
+  switch (type) {
+  case se::gfx::Texture::TextureType::vkTexture:
+    return texture->width(); break;
+  case se::gfx::Texture::TextureType::bufTexture:
+    return bufTex.value().packet.dim_0; break;
+  default: return 0;
+  }
 }
 
 auto Texture::getHeight() noexcept -> uint32_t {
-  return texture->height();
+  switch (type) {
+  case se::gfx::Texture::TextureType::vkTexture:
+    return texture->height(); break;
+  case se::gfx::Texture::TextureType::bufTexture:
+    return bufTex.value().packet.dim_1; break;
+  default: return 0;
+  }
 }
 
 TextureLoader::result_type TextureLoader::operator()(from_desc_tag, rhi::TextureDescriptor const& desc) {
@@ -876,6 +899,20 @@ TextureLoader::result_type TextureLoader::operator()(from_file_tag, std::filesys
 
   GFXContext::device->getGraphicsQueue()->submit({commandEncoder->finish()});
   GFXContext::device->waitIdle();
+  return result;
+}
+
+TextureLoader::result_type TextureLoader::operator()(from_desc_buf_tag, 
+  rhi::TextureDescriptor const& desc, float default_value) {
+  TextureLoader::result_type result = std::make_shared<Texture>();
+  result->type = Texture::TextureType::bufTexture;
+  result->bufTex = DifferentiableParameter{
+    int(desc.size.width),
+    int(desc.size.height),
+    int(desc.arrayLayerCount),
+    1, 0, 0,
+    default_value
+  };
   return result;
 }
 
@@ -1042,6 +1079,12 @@ auto GFXContext::create_texture_file(std::string const& path) noexcept -> Textur
   auto ret = textures.load(ruid, TextureLoader::from_file_tag{}, path);
   gfx::GFXContext::device->trainsitionTextureLayout(ret.first->second->texture.get(),
     se::rhi::TextureLayout::UNDEFINED, se::rhi::TextureLayout::GENERAL);
+  return TextureHandle{ ret.first->second, ruid };
+}
+
+auto GFXContext::create_buf_texture_desc(rhi::TextureDescriptor const& desc, float default_value) noexcept -> TextureHandle {
+  RUID const ruid = root::resource::queryRUID();
+  auto ret = textures.load(ruid, TextureLoader::from_desc_buf_tag{}, desc, default_value);
   return TextureHandle{ ret.first->second, ruid };
 }
 

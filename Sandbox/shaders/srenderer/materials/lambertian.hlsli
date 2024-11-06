@@ -14,8 +14,21 @@
 struct LambertMaterial : IBxDFParameter {
     __init() { R = float3(1.f); }
     __init(float3 r) { R = r; }
-    __init(MaterialData mat, float2 uv) { R = mat.floatvec_0.xyz * sampleTexture(mat.albedo_tex, uv).rgb; } 
+    __init(MaterialData mat, float2 uv) {
+        R = mat.floatvec_0.xyz * SampleTexture2D(mat.albedo_tex, uv,
+            mat.is_albedo_tex_differentiable()).rgb;
+    }
+
     float3 R; // reflectance
+    
+    [BackwardDifferentiable]
+    static LambertMaterial load(no_diff MaterialData mat, no_diff float2 uv) {
+        LambertMaterial material = no_diff LambertMaterial();
+        material.R = mat.floatvec_0.xyz * 
+            SampleTexture2D(mat.albedo_tex, uv,
+                mat.is_albedo_tex_differentiable()).rgb;
+        return material;
+    }
 };
 
 struct LambertianBRDF : IBxDF {
@@ -30,13 +43,15 @@ struct LambertianBRDF : IBxDF {
                material.R * k_inv_pi;
     }
 
-    static LambertMaterial.Differential bwd_eval(
-        ibsdf::eval_in i, LambertMaterial material,
-        float3.Differential d_output
+    static void backward_grad(
+        ibsdf::bwd_in i, float3 dL,
+        MaterialData mat,
+        float2 texcoord
     ) {
-        var pair = diffPair(material);
-        bwd_diff(LambertianBRDF::eval)(i, pair, d_output);
-        return pair.d;
+        LambertMaterial material = LambertMaterial(mat, texcoord);
+        var material_pair = diffPair(material);
+        bwd_diff(eval)(i.eval, material_pair, dL);
+        bwd_diff(LambertMaterial::load)(mat, texcoord, material_pair.d);
     }
 
     // importance sample the BSDF

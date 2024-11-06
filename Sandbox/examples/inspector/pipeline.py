@@ -63,6 +63,9 @@ class ForwardPass(core.rdg.ComputePass):
             ["GPUScene_textures", scene.get().getGPUScene().bindingResourceTextures()],
             ["GPUScene_light_bvh", scene.get().getGPUScene().bindingResourceLightBVH()],
             ["GPUScene_light_trail", scene.get().getGPUScene().bindingResourceLightTrail()],
+            ["GPUScene_param_packets", scene.get().getGPUScene().bindingResourceParamPacket()],
+            ["GPUScene_param_primal", scene.get().getGPUScene().bindingResourceParamPrimal()],
+            ["GPUScene_param_gradient", scene.get().getGPUScene().bindingResourceParamGradient()],
             ["GPUScene_description", scene.get().getGPUScene().bindingSceneDescriptor()],
         ])
         
@@ -95,6 +98,7 @@ class ForwardPass(core.rdg.ComputePass):
             "Texcoord",
             "Normal",
             "Position",
+            "Additional Texture"
         ])
         sed.ImGui.DragFloat("Wireframe Smoothness", self.common.wireframe_smoothness, 0.01, 0.0, 1.0)
         sed.ImGui.DragFloat("Wireframe Thickness", self.common.wireframe_thickness, 0.01, 0.0, 1.0)

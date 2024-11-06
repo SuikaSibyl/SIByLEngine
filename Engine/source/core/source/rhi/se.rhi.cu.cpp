@@ -112,6 +112,25 @@ auto CUDAContext::toCUDABuffer(Buffer* buffer) noexcept -> std::unique_ptr<CUDAB
   return cubuffer;
 }
 
+auto CUDAContext::toCUDABufferInterval(Buffer* buffer, int offset, int size) noexcept -> std::unique_ptr<CUDABuffer> {
+  std::unique_ptr<CUDABufferImpl> cubuffer = std::make_unique<CUDABufferImpl>();
+  cubuffer->isExternal = true;
+  se::rhi::Buffer::ExternalHandle handle = buffer->getMemHandle();
+  cudaExternalMemoryHandleDesc externalMemoryHandleDesc = {};
+  externalMemoryHandleDesc.type = cudaExternalMemoryHandleTypeOpaqueWin32;
+  externalMemoryHandleDesc.size = handle.size + handle.offset;
+  externalMemoryHandleDesc.handle.win32.handle = (HANDLE)handle.handle;
+  checkCudaErrors(cudaImportExternalMemory(&cubuffer->cudaMem, &externalMemoryHandleDesc));
+  cudaExternalMemoryBufferDesc externalMemBufferDesc = {};
+  externalMemBufferDesc.offset = handle.offset + offset;
+  externalMemBufferDesc.size = size;
+  externalMemBufferDesc.flags = 0;
+  void** ptr = (void**)&cubuffer->dataPtr;
+  checkCudaErrors(cudaExternalMemoryGetMappedBuffer(
+    ptr, cubuffer->cudaMem, &externalMemBufferDesc));
+  return cubuffer;
+}
+
 auto CUDAContext::allocCUDABuffer(size_t size)noexcept -> std::unique_ptr<CUDABuffer> {
   std::unique_ptr<CUDABufferImpl> cubuffer = std::make_unique<CUDABufferImpl>();
   cudaMalloc(&cubuffer->dataPtr, size);

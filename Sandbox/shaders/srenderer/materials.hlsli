@@ -35,7 +35,18 @@ float3 bsdf_eval(ibsdf::eval_in i, MaterialData material, float2 uv) {
     return float3(0, 0, 0);
 }
 
-float3 albedo(MaterialData material, float2 uv) { return material.floatvec_0.xyz * sampleTexture(material.albedo_tex, uv).rgb; }
+void bsdf_backward_grad(ibsdf::bwd_in i, float3 dL, MaterialData material, float2 uv) {
+    ibsdf::sample_out o;
+    switch (material.bxdf_type) {
+    case 0: LambertianBRDF::backward_grad(i, dL, material, uv); break;
+    }
+}
+
+float3 albedo(MaterialData material, float2 uv) {
+    return material.floatvec_0.xyz *
+           SampleTexture2D(material.albedo_tex, uv, 
+            material.is_albedo_tex_differentiable()).rgb; 
+}
 float3 emission(MaterialData material) { return material.floatvec_1.xyz; }
 }
 
