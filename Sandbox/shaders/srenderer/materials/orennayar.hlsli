@@ -2,8 +2,8 @@
 #define _SRENDERER_ORENNAYAR_MATERIAL_
 
 #include "bxdf.hlsli"
-#include "common/math.hlsli"
 #include "common/sampling.hlsli"
+#include "srenderer/scene-binding.hlsli"
 
 ///////////////////////////////////////////////////////////////////////////////////////////
 // Oren-Nayar BRDF
@@ -17,6 +17,47 @@
 struct OrenNayarMaterial : IBxDFParameter {
     float3 R;       // Reflectance
     float sigma;    // Gaussian deviation [0, 1]
+
+    __init() { R = float3(1.f); sigma = 0.f; }
+    __init(MaterialData mat, float2 uv) {
+        R = mat.floatvec_0.xyz * SampleTexture2D(mat.albedo_tex, uv,
+            mat.is_albedo_tex_differentiable()) .rgb;
+
+        const float ext_tex_r = SampleTexture2D(
+            mat.ext1_tex, uv,
+            mat.is_ext1_tex_differentiable()) .r;
+        sigma = clamp(mat.floatvec_0.w * ext_tex_r, 0.f, 1.f);
+    }
+
+    [BackwardDifferentiable]
+    static OrenNayarMaterial load(no_diff MaterialData data, no_diff float2 uv) {
+        const float ext_tex_r = SampleTexture2D(
+            data.ext1_tex, uv,
+            data.is_ext1_tex_differentiable()).r;
+        
+        OrenNayarMaterial material = no_diff OrenNayarMaterial();
+        material.R = data.floatvec_0.xyz * SampleTexture2D(data.albedo_tex, uv,
+            data.is_albedo_tex_differentiable()) .rgb;
+        material.sigma = clamp(data.floatvec_0.w * ext_tex_r, 0.f, 1.f);
+        return material;
+    }
+
+    [BackwardDifferentiable]
+    static OrenNayarMaterial load_w_aux(
+        no_diff MaterialData data, no_diff float2 uv, 
+        no_diff float sigma_aux
+    ) {
+        const float ext_tex_r = SampleTexture2D_w_aux(
+            data.ext1_tex, uv,
+            float4(sigma_aux, 0, 0, 0),
+            data.is_ext1_tex_differentiable()) .r;
+        
+        OrenNayarMaterial material = no_diff OrenNayarMaterial();
+        material.R = data.floatvec_0.xyz * SampleTexture2D(data.albedo_tex, uv,
+                                                           data.is_albedo_tex_differentiable()) .rgb;
+        material.sigma = clamp(data.floatvec_0.w * ext_tex_r, 0.f, 1.f);
+        return material;
+    }
 };
 
 struct OrenNayarBRDF : IBxDF {
@@ -62,10 +103,13 @@ struct OrenNayarBRDF : IBxDF {
     // importance sample the BSDF
     // here we simply use cosine-weighted hemisphere sampling
     static ibsdf::sample_out sample(ibsdf::sample_in i, OrenNayarMaterial material) {
-        Frame frame = i.shading_frame;
         ibsdf::sample_out o;
+        // Flip the shading frame if it is
+        // inconsistent with the geometry normal.
+        Frame frame = i.shading_frame;
         o.wo = frame.to_world(sample_cos_hemisphere(i.u.xy));
         o.pdf = abs(dot(frame.n, o.wo)) * k_inv_pi;
+
         // evaluate the BSDF
         ibsdf::eval_in eval_in;
         eval_in.wi = i.wi;
@@ -75,18 +119,94 @@ struct OrenNayarBRDF : IBxDF {
         o.bsdf = eval(eval_in, material) / o.pdf;
         return o;
     }
-
+    
     // evaluate the PDF of the BSDF sampling
-    float pdf(ibsdf::pdf_in i) {
+    static float pdf(ibsdf::pdf_in i, OrenNayarMaterial material) {
         Frame frame = i.shading_frame;
         return max(dot(frame.n, i.wo), float(0)) * k_inv_pi;
     }
 
-    // evaluate the derivative of the BSDF
-    static OrenNayarMaterial.Differential diff_eval(ibsdf::eval_in i, OrenNayarMaterial material, float3 d_output) {
+    static void backward_grad(
+        ibsdf::bwd_in i, float3 dL,
+        MaterialData mat,
+        float2 texcoord
+    ) {
+        OrenNayarMaterial material = OrenNayarMaterial(mat, texcoord);
         var material_pair = diffPair(material);
-        bwd_diff(OrenNayarBRDF::eval)(i, material_pair, d_output);
-        return material_pair.d;
+        bwd_diff(eval)(i.eval, material_pair, dL);
+        bwd_diff(OrenNayarMaterial::load)(mat, texcoord, material_pair.d);
+    }
+    
+    static void backward_grad_ratio(
+        ibsdf::bwd_in i, float3 dL,
+        MaterialData mat,
+        float2 texcoord
+    ) { 
+        OrenNayarMaterial material = OrenNayarMaterial(mat, texcoord);
+        var material_pair = diffPair(material);
+        bwd_diff(eval)(i.eval, material_pair, dL);
+        float aux = 1.f / (i.pdf * k_2pi);
+        bwd_diff(OrenNayarMaterial::load_w_aux)(mat, texcoord, aux, material_pair.d);
+    }
+
+    static void backward_sigma_derivative_diffuse(
+        ibsdf::bwd_in i, float3 dL,
+        MaterialData mat,
+        float2 texcoord
+    ) {
+        OrenNayarMaterial material = OrenNayarMaterial(mat, texcoord);
+        var material_pair = diffPair(material);
+        bwd_diff(eval_term1)(i.eval, material_pair, dL);
+        bwd_diff(OrenNayarMaterial::load)(mat, texcoord, material_pair.d);
+    }
+
+    /** sample but not compute brdfd with postivized derivative sampling, positive */
+    static ibsdf::sample_out sample_sigma_derivative_diffuse(
+        const ibsdf::sample_in i, OrenNayarMaterial material) {
+        // Sample diffuse BRDF
+        ibsdf::sample_out o;
+        o.wo = i.shading_frame.to_world(sample_cos_hemisphere(i.u.xy));
+        o.pdf = abs(dot(i.shading_frame.n, o.wo)) * k_inv_pi;
+        return o;
+    }
+
+    static void backward_sigma_derivative_spec(
+        ibsdf::bwd_in i, float3 dL,
+        MaterialData mat,
+        float2 texcoord
+    ) {
+        OrenNayarMaterial material = OrenNayarMaterial(mat, texcoord);
+        var material_pair = diffPair(material);
+        bwd_diff(eval_term2)(i.eval, material_pair, dL);
+        bwd_diff(OrenNayarMaterial::load)(mat, texcoord, material_pair.d);
+    }
+
+    /** sample but not compute brdfd with postivized derivative sampling, positive */
+    static ibsdf::sample_out sample_sigma_derivative_spec(
+        const ibsdf::sample_in i, OrenNayarMaterial material) {
+        // Sample the derivative: cos-weighted hemisphere
+        float3 wi = i.shading_frame.to_local(i.wi);
+        if (wi.z < 0) wi = float3(wi.x, wi.y, -wi.z);
+        // Sample the phi and theta respectively
+        // 1. first sample the phi
+        // Sample t between [0, pi/2] using cosine hemispherical sampling
+        const float phi_o = sample_dsigma_t2_phi(theta_phi_coord::Phi(wi), i.u.x);
+        const float theta_o = sample_dsigma_t2_theta(theta_phi_coord::Theta(wi), i.u.y);
+        const float3 wo = theta_phi_coord::SphericalDirection(theta_o, phi_o);
+
+        // evaluate the pdf
+        ibsdf::pdf_in pi;
+        pi.wi = i.wi;
+        pi.wo = i.shading_frame.to_world(wo);
+        pi.geometric_normal = i.geometric_normal;
+        pi.shading_frame = i.shading_frame;
+        float pdf = pdf_dsigma_term2(pi);
+        
+        // Sample diffuse BRDF
+        ibsdf::sample_out o;
+        o.wo = pi.wo;
+        o.pdf = pdf;
+        return o;
     }
 
     // evaluate the first term of the BSDF (diffuse term)
@@ -103,31 +223,6 @@ struct OrenNayarBRDF : IBxDF {
         return material.R * k_inv_pi * A * abs(wo.z);
     }
     
-    // sampling the derivative of the first term of the BSDF
-    // here we simply use cosine-weighted hemisphere sampling
-    static ibsdf::dsample_out<OrenNayarMaterial> sample_dsigma_t1(
-        ibsdf::sample_in i,
-        OrenNayarMaterial material,
-        float3 d_output) {
-        // Sample the derivative: cos-weighted hemisphere
-        ibsdf::sample_out o = sample(i, material);
-        // Assemble the evaluation input
-        ibsdf::eval_in i_eval;
-        i_eval.wi = i.wi;
-        i_eval.wo = o.wo;
-        i_eval.geometric_normal = i.geometric_normal;
-        i_eval.shading_frame = i.shading_frame;
-        // Evaluate the 1st term of the BSDF Derivative
-        var material_pair = diffPair(material);
-        bwd_diff(OrenNayarBRDF::eval_term1)(i_eval, material_pair, d_output / o.pdf);
-        // Assemble the output
-        ibsdf::dsample_out<OrenNayarMaterial> o_diff;
-        o_diff.wo = o.wo;
-        o_diff.pdf = o.pdf;
-        o_diff.dparam = material_pair.d;
-        return o_diff;
-    }
-
     // evaluate the PDF of the first term of the BSDF
     // here we simply use cosine-weighted hemisphere sampling
     float pdf_term1(ibsdf::pdf_in i) {

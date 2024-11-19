@@ -325,6 +325,8 @@ float3 yuv2rgb(float3 yuv) {
 }
 
 [Differentiable] float average(float3 v) { return (v.x + v.y + v.z) / 3; }
+[Differentiable] float sum(float2 v) { return (v.x + v.y); }
+[Differentiable] float sum(float3 v) { return (v.x + v.y + v.z); }
 
 // decompose a floating-point number into its components
 int exponent(float v) { return (asuint(v) >> 23) - 127; }
@@ -358,5 +360,9 @@ float sample_exponential(float u, float a) { return -log(1 - u) / a; }
 
 float2 fast_exp(float2 v) { return float2(exp(v.x), exp(v.y)); }
 float3 fast_exp(float3 v) { return float3(exp(v.x), exp(v.y), exp(v.z)); }
+
+struct float8 {
+    float4 lo, hi;
+};
 
 #endif // !_SRENDERER_COMMMON_MATH_HEADER_

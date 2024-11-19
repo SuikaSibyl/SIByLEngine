@@ -337,9 +337,9 @@ struct IsotropicTrowbridgeReitzDistribution : IMicrofacetDistribution {
         float cos4Theta = theta_phi_coord::Cos2Theta(wh) 
                         * theta_phi_coord::Cos2Theta(wh);
         float e = tan2Theta / (param.alpha * param.alpha);
-        return 1 / (k_pi * param.alpha * param.alpha * cos4Theta * (1 + e) * (1 + e));
+        return 1. / (k_pi * param.alpha * param.alpha * cos4Theta * (1 + e) * (1 + e));
     }
-
+    
     /** G(w) gives the fraction of microfacets in a differential area
      * that are visible from the direction w.
      * @param w: the direction vector given
@@ -562,7 +562,7 @@ struct IsotropicTrowbridgeReitzDerivative : IMicrofacetDerivative {
         const float phi = u.y * k_2pi;
         return theta_phi_coord::SphericalDirection(sin(theta), cos(theta), phi);
     }
-
+    
     /**
      * PDF of sampling a microfacet orientation by sampling from
      * the (visible) normal distribution derivative D'(wh),

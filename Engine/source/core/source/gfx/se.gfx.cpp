@@ -903,15 +903,17 @@ TextureLoader::result_type TextureLoader::operator()(from_file_tag, std::filesys
 }
 
 TextureLoader::result_type TextureLoader::operator()(from_desc_buf_tag, 
-  rhi::TextureDescriptor const& desc, float default_value) {
+  rhi::TextureDescriptor const& desc, float default_value,
+  int aux_count, int rep_count) {
   TextureLoader::result_type result = std::make_shared<Texture>();
   result->type = Texture::TextureType::bufTexture;
   result->bufTex = DifferentiableParameter{
     int(desc.size.width),
     int(desc.size.height),
     int(desc.arrayLayerCount),
-    1, 0, 0,
-    default_value
+    rep_count, 0, 0,
+    default_value,
+    aux_count
   };
   return result;
 }
@@ -1082,9 +1084,10 @@ auto GFXContext::create_texture_file(std::string const& path) noexcept -> Textur
   return TextureHandle{ ret.first->second, ruid };
 }
 
-auto GFXContext::create_buf_texture_desc(rhi::TextureDescriptor const& desc, float default_value) noexcept -> TextureHandle {
+auto GFXContext::create_buf_texture_desc(rhi::TextureDescriptor const& desc, float default_value,
+  int aux_count, int rep_count) noexcept -> TextureHandle {
   RUID const ruid = root::resource::queryRUID();
-  auto ret = textures.load(ruid, TextureLoader::from_desc_buf_tag{}, desc, default_value);
+  auto ret = textures.load(ruid, TextureLoader::from_desc_buf_tag{}, desc, default_value, aux_count, rep_count);
   return TextureHandle{ ret.first->second, ruid };
 }
 

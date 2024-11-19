@@ -299,6 +299,7 @@ auto Scene::serialize() noexcept -> tinygltf::Model {
     diff_param_extra["dim_2"] = tinygltf::Value(int(params->packet.dim_2));
     diff_param_extra["dim_replica"] = tinygltf::Value(int(params->packet.dim_replica));
     diff_param_extra["default_value"] = tinygltf::Value(float(params->packet.default_value));
+    diff_param_extra["num_aux"] = tinygltf::Value(int(params->packet.dim_aux));
     return tinygltf::Value(diff_param_extra);
   };
 
@@ -344,7 +345,7 @@ auto Scene::serialize() noexcept -> tinygltf::Model {
     };
 
     tinygltf::Value::Object material_extra;
-
+    material_extra["bxdf"] = tinygltf::Value(material->bxdf);
     // check additionalTex
     if (material->basecolorTex.get() != nullptr) {
       gltf_material.pbrMetallicRoughness.baseColorTexture.index = add_texture(material->basecolorTex.get());
@@ -1177,7 +1178,7 @@ auto Scene::GPUScene::DiffParamPool::push_back_parameter(
   primal_buffer->host_stamp++;
 
   // second allocate the gradient buffer
-  int gradient_size = pirmal_size * in_packet.dim_replica;
+  int gradient_size = pirmal_size * in_packet.dim_replica * (1 + in_packet.dim_aux);
   int gradient_offset = gradient_buffer->host.size() / sizeof(float);
   gradient_buffer->host.resize(sizeof(float) * (gradient_offset + gradient_size));
   std::span<float> gradients_floats = std::span<float>{
@@ -1239,7 +1240,7 @@ auto Scene::GPUScene::try_fetch_material_index(MaterialHandle& handle) noexcept 
     if (handle->additionalTex.get()) {
       pack.ext1_tex = try_fetch_texture_index(handle->additionalTex);
       if (handle->additionalTex->type == Texture::TextureType::bufTexture)
-        pack.bitfield |= Material::MaterialFlagBit::Diff_AdditionalTex;
+        pack.bitfield |= Material::MaterialFlagBit::Diff_AdditionalTex_1;
     }
     memcpy((float*)&(material_buffer->host[sizeof(Material::MaterialPacket) * index]), &pack, sizeof(pack));
     material_buffer->host_stamp++;
@@ -1715,6 +1716,9 @@ auto loadGLTFMaterial(tinygltf::Material const* glmaterial, tinygltf::Model cons
   }
 
   auto& extras = glmaterial->extras;
+  if (extras.Has("bxdf")) {
+    mat->bxdf = extras.Get("bxdf").GetNumberAsInt();
+  }
   if (extras.Has("additional_tex")) {
     int tex_id = extras.Get("additional_tex").GetNumberAsInt();
     mat->additionalTex = env.textures[&(model->textures[tex_id])];
@@ -2908,7 +2912,9 @@ SceneLoader::result_type SceneLoader::operator()(SceneLoader::from_gltf_tag, std
       desc.size.height = dparam.Get("dim_1").GetNumberAsInt();
       desc.arrayLayerCount = dparam.Get("dim_2").GetNumberAsInt();
       float default_value = float(dparam.Get("default_value").GetNumberAsDouble());
-      TextureHandle texture = gfx::GFXContext::create_buf_texture_desc(desc, default_value);
+      int replica_num = float(dparam.Get("dim_replica").GetNumberAsInt());
+      int num_aux = float(dparam.Get("num_aux").GetNumberAsInt());
+      TextureHandle texture = gfx::GFXContext::create_buf_texture_desc(desc, default_value, num_aux, replica_num);
       env.textures[&texture_gltf] = texture;
     }
   }

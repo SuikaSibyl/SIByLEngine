@@ -106,6 +106,59 @@ float4 SampleTexture2D(int textureID, no_diff float2 uv, bool is_differentiable 
     }
 }
 
+[BackwardDifferentiable]
+float4 SampleTexture2D_w_aux(int textureID, no_diff float2 uv, no_diff float4 aux, bool is_differentiable = false) {
+    if (!is_differentiable) {
+        if (textureID >= 0)
+            return no_diff GPUScene_textures[textureID].Sample(uv);
+        else return float4(1, 1, 1, 1);
+    } else {
+        if (textureID >= 0) {
+            DifferentiableParameter param = GPUScene_param_packets[textureID];
+            float4 texel = float4(0, 0, 0, 1);
+            if (param.dim_2 > 0) texel.x = software_bilinear_interpolation_load_w_aux_float2(uv, 0, param, aux.x);
+            if (param.dim_2 > 1) texel.y = software_bilinear_interpolation_load_w_aux_float2(uv, 1, param, aux.y);
+            if (param.dim_2 > 2) texel.z = software_bilinear_interpolation_load_w_aux_float2(uv, 2, param, aux.z);
+            if (param.dim_2 > 3) texel.w = software_bilinear_interpolation_load_w_aux_float2(uv, 3, param, aux.w);
+            return texel;
+        }
+        else return float4(1, 1, 1, 1);
+    }
+}
+
+float4 SampleTexture2DGradient(int textureID, no_diff float2 uv, bool is_differentiable = false) {
+    if (!is_differentiable) {
+        return float4(0, 0, 0, 0);
+    } else {
+        if (textureID >= 0) {
+            DifferentiableParameter param = GPUScene_param_packets[textureID];
+            float4 texel = float4(0, 0, 0, 0);
+            if (param.dim_2 > 0) texel.x = software_nearest_load_grad(uv, 0, param);
+            if (param.dim_2 > 1) texel.y = software_nearest_load_grad(uv, 1, param);
+            if (param.dim_2 > 2) texel.z = software_nearest_load_grad(uv, 2, param);
+            return texel;
+        }
+        else return float4(0, 0, 0, 0);
+    }
+}
+
+float4 SampleTexture2DAux(int textureID, no_diff float2 uv, int aux_idx, bool is_differentiable = false) {
+    if (!is_differentiable) {
+        return float4(0, 0, 0, 0);
+    } else {
+        if (textureID >= 0) {
+            DifferentiableParameter param = GPUScene_param_packets[textureID];
+            float4 texel = float4(0, 0, 0, 0);
+            if (param.dim_2 > 0) texel.x = software_nearest_load_aux(uv, 0, aux_idx, param);
+            if (param.dim_2 > 1) texel.y = software_nearest_load_aux(uv, 1, aux_idx, param);
+            if (param.dim_2 > 2) texel.z = software_nearest_load_aux(uv, 2, aux_idx, param);
+            if (param.dim_2 > 3) texel.w = software_nearest_load_aux(uv, 3, aux_idx, param);
+            return texel;
+        }
+        else return float4(0, 0, 0, 0);
+    }
+}
+
 /**
  * Fetches the geometry hit info for a given geometry ID and primitive ID.
  * @param geometryID The geometry ID.
@@ -145,7 +198,7 @@ GeometryHit fetchTrimeshGeometryHit(
     hit.texcoord = uv;
     if (any(isnan(hit.texcoord)))
         hit.texcoord = float2(.5);
-
+    
     float3 objectSpaceFlatNormal = normalize(cross(
         vertexPositions[1] - vertexPositions[0],
         vertexPositions[2] - vertexPositions[0]));

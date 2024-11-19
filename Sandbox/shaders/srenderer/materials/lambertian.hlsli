@@ -74,13 +74,6 @@ struct LambertianBRDF : IBxDF {
     }
     // Evaluate the PDF of the BSDF sampling
     static float pdf(ibsdf::pdf_in i, LambertMaterial material) {
-        // if (dot(i.geometric_normal, i.wi) < 0 ||
-        //     dot(i.geometric_normal, i.wo) < 0) {
-        //     // No light below the surface
-        //     return float(0);
-        // }
-        // Flip the shading frame if it is
-        // inconsistent with the geometry normal.
         Frame frame = i.shading_frame;
         return max(dot(frame.n, i.wo), float(0)) * k_inv_pi;
     }

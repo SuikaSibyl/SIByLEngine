@@ -210,7 +210,7 @@ struct SIByL_API DifferentiableParameter {
     int offset_primal;
     int offset_grad;
     float default_value;
-    int padding;
+    int dim_aux;
   } packet;
   // weak pointer to buffer instantiated on
   Buffer* buffer_prim = nullptr;
@@ -280,7 +280,8 @@ struct SIByL_API TextureLoader {
 
   result_type operator()(from_desc_tag, rhi::TextureDescriptor const& desc);
   result_type operator()(from_file_tag, std::filesystem::path const& path);
-  result_type operator()(from_desc_buf_tag, rhi::TextureDescriptor const& desc, float default_value = 0.5);
+  result_type operator()(from_desc_buf_tag, rhi::TextureDescriptor const& desc, float default_value = 0.5,
+    int aux_count = 0, int rep_count = 1);
 };
 
 // Base class definition
@@ -291,8 +292,8 @@ struct SIByL_API Material : public Resource {
   /* cast material to gltf material structure. */
   operator tinygltf::Material() const;
   enum MaterialFlagBit {
-    Diff_AlbedoTex      = 1 << 0,
-    Diff_AdditionalTex  = 1 << 1,
+    Diff_AlbedoTex        = 1 << 0,
+    Diff_AdditionalTex_1  = 1 << 1,
   };
   struct MaterialPacket {
     int32_t bxdf_type = 0;
@@ -882,7 +883,8 @@ struct SIByL_API GFXContext {
   ) noexcept -> TextureHandle;
   static auto create_buf_texture_desc(
     rhi::TextureDescriptor const& desc,
-    float default_value
+    float default_value,
+    int aux_count, int rep_count
   ) noexcept -> TextureHandle;
 
   static auto create_sampler_desc(

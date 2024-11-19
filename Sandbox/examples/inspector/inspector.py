@@ -32,8 +32,9 @@ class EditorApp(EditorApplication):
         # self.scene = se.gfx.Context.load_scene_gltf("D:/Art/Scenes/veach-mis-mitsuba/scene_v3.gltf")
         # self.scene = se.gfx.Context.load_scene_gltf("examples/glt/_data/box.gltf")
         # self.scene = se.gfx.Context.load_scene_xml("D:/Art/Scenes/living-room-3-mitsuba/living-room-3/scene_v3_simple.xml")
-        self.scene = se.gfx.Context.load_scene_gltf("S:/SIByL2024/Sandbox/examples/prb/_data/plane-albedo-diff.gltf")
-        
+        # self.scene = se.gfx.Context.load_scene_gltf("S:/SIByL2024/Sandbox/examples/prb/_data/plane-albedo-diff.gltf")
+        self.scene = se.gfx.Context.load_scene_gltf("examples/glt/_data/sandwich.gltf")
+
         # self.scene = se.gfx.Context.load_scene_xml("D:/Art/Scenes/house/scene_v3.xml")
         print("Scene Loaded Successfully!")
         
@@ -69,7 +70,7 @@ class EditorApp(EditorApplication):
         # self.scene = se.gfx.Context.load_scene_xml("D:/Art/Scenes/cornell-box-mitsuba/scene.xml")
         # self.scene = se.gfx.Context.load_scene_xml("D:/Art/Scenes/living-room-3-mitsuba/living-room-3/scene_v3.xml")
         # self.scene = se.gfx.Context.load_scene_xml("D:/Art/Scenes/living-room-3-mitsuba/living-room-3/scene_v3.xml")
-
+        
         se.gfx.PMFConstructor.upload_datapack()
     
     def onUpdate(self):

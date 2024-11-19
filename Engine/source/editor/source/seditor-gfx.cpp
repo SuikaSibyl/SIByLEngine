@@ -346,7 +346,51 @@ auto drawTextureViewer(gfx::TextureHandle texture) noexcept -> void {
   }
   else {
     ImGui::Text("Buffer-Based Texture");
-
+    if (ImGui::BeginTable("table2", 2, ImGuiTableFlags_SizingFixedFit)) {
+      ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthFixed);
+      ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthFixed);
+      { // width
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::Text("width");
+        ImGui::TableNextColumn();
+        int size_width = int(texture->bufTex->packet.dim_0);
+        ImGui::SetNextItemWidth(150);
+        ImGui::DragInt("##width", &size_width);
+        texture->bufTex->packet.dim_0 = uint32_t(size_width);
+      }
+      { // height
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::Text("height");
+        ImGui::TableNextColumn();
+        int size_height = int(texture->bufTex->packet.dim_1);
+        ImGui::SetNextItemWidth(150);
+        ImGui::DragInt("##height", &size_height);
+        texture->bufTex->packet.dim_1 = uint32_t(size_height);
+      }
+      { // aux
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::Text("grad auxiliary");
+        ImGui::TableNextColumn();
+        int grad_aux = int(texture->bufTex->packet.dim_aux);
+        ImGui::SetNextItemWidth(150);
+        ImGui::DragInt("##gaux", &grad_aux);
+        texture->bufTex->packet.dim_aux = grad_aux;
+      }
+      { // repica
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::Text("grad replica");
+        ImGui::TableNextColumn();
+        int grad_rep = int(texture->bufTex->packet.dim_replica);
+        ImGui::SetNextItemWidth(150);
+        ImGui::DragInt("##rep", &grad_rep);
+        texture->bufTex->packet.dim_replica = grad_rep;
+      }
+      ImGui::EndTable();
+    }
   }
 }
 
@@ -365,6 +409,7 @@ auto drawTextureViewerEnableCreation(gfx::TextureHandle* texture) noexcept -> vo
       static rhi::TextureDescriptor desc = {{ 512, 512, 0 }, };
       static float default_value = 0.5f;
       static int gradient_replica = 1;
+      static int gradient_auxiliary = 3;
       if (ImGui::BeginPopup("texture_assign_desc_popup", ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_HorizontalScrollbar)) {
         if (ImGui::BeginTable("table2", 2, ImGuiTableFlags_SizingFixedFit)) {
           ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthFixed);
@@ -376,6 +421,14 @@ auto drawTextureViewerEnableCreation(gfx::TextureHandle* texture) noexcept -> vo
             ImGui::TableNextColumn();
             ImGui::SetNextItemWidth(150);
             ImGui::DragInt("##Gradient Replica", &gradient_replica);
+          }
+          { // gradient info
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::Text("Gradient Auxiliary");
+            ImGui::TableNextColumn();
+            ImGui::SetNextItemWidth(150);
+            ImGui::DragInt("##Gradient Auxiliary", &gradient_auxiliary);
           }
           { // default value
             ImGui::TableNextRow();
@@ -419,7 +472,8 @@ auto drawTextureViewerEnableCreation(gfx::TextureHandle* texture) noexcept -> vo
         }
 
         if (ImGui::Selectable("Create Buf-Texture")) {
-          *texture = gfx::GFXContext::create_buf_texture_desc(desc, default_value);
+          *texture = gfx::GFXContext::create_buf_texture_desc(desc, default_value,
+            gradient_replica, gradient_auxiliary);
         }
         ImGui::EndPopup();
       }
@@ -438,10 +492,22 @@ auto drawMaterialEditor(gfx::MaterialHandle material) {
         ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthFixed);
         ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
 
+        { // type
+          ImGui::TableNextRow();
+          ImGui::TableNextColumn();
+          ImGui::Text("BxDF");
+          ImGui::TableNextColumn();
+          int bxdf = int(material->bxdf);
+          if (ImGui::Combo("##bxdf", &bxdf, "lambertian\0conductor\0plastic")) {
+            material->isDirty = true;
+            material->bxdf = uint32_t(bxdf);
+            if (scene.get()) scene->dirtyFlags |= (uint32_t)gfx::Scene::DirtyFlagBit::Material;
+          }
+        }
         { // basecolor
           ImGui::TableNextRow();
           ImGui::TableNextColumn();
-          ImGui::Text("Albedo");
+          ImGui::Text("VecParam-1");
           ImGui::TableNextColumn();
           float basecolor[3] = {
             material->baseOrDiffuseColor.r,
@@ -463,7 +529,7 @@ auto drawMaterialEditor(gfx::MaterialHandle material) {
         { // emission
           ImGui::TableNextRow();
           ImGui::TableNextColumn();
-          ImGui::Text("Emission");
+          ImGui::Text("VecParam-2");
           ImGui::TableNextColumn();
           float emission[3] = {
             material->emissiveColor.r,
@@ -472,6 +538,41 @@ auto drawMaterialEditor(gfx::MaterialHandle material) {
           if (ImGui::DragFloat3("##Emission", emission, 0.05, 0)) {
             material->isDirty = true;
             material->emissiveColor = { emission[0], emission[1], emission[2] };
+            if (scene.get()) scene->dirtyFlags |= (uint32_t)gfx::Scene::DirtyFlagBit::Material;
+          }
+        }
+        { // emission
+          ImGui::TableNextRow();
+          ImGui::TableNextColumn();
+          ImGui::Text("VecParam-3");
+          ImGui::TableNextColumn();
+          float vecparam[3] = {
+            material->floatvec_2.r,
+            material->floatvec_2.g,
+            material->floatvec_2.b, };
+          if (ImGui::DragFloat4("##floatvec_2", vecparam, 0.05, 0)) {
+            material->isDirty = true;
+            material->floatvec_2 = { vecparam[0], vecparam[1], vecparam[2] };
+            if (scene.get()) scene->dirtyFlags |= (uint32_t)gfx::Scene::DirtyFlagBit::Material;
+          }
+        }
+        { // alpha
+          ImGui::TableNextRow();
+          ImGui::TableNextColumn();
+          ImGui::Text("ScalarParam-0");
+          ImGui::TableNextColumn();
+          if (ImGui::DragFloat("##Param-1", &material->roughnessFactor, 0.05, 0)) {
+            material->isDirty = true;
+            if (scene.get()) scene->dirtyFlags |= (uint32_t)gfx::Scene::DirtyFlagBit::Material;
+          }
+        }
+        { // alpha
+          ImGui::TableNextRow();
+          ImGui::TableNextColumn();
+          ImGui::Text("ScalarParam-1");
+          ImGui::TableNextColumn();
+          if (ImGui::DragFloat("##Param-2", &material->metallicFactor, 0.05, 0)) {
+            material->isDirty = true;
             if (scene.get()) scene->dirtyFlags |= (uint32_t)gfx::Scene::DirtyFlagBit::Material;
           }
         }

@@ -171,6 +171,9 @@ class SESceneParamters:
   def __init__(self, scene:core.gfx.SceneHandle):
     primal_buffer = scene.get().getGPUScene().export_param_primal()
     grad_buffer = scene.get().getGPUScene().export_param_gradient()
+
+    self.param_count = 0
+    self.packet_count = 0
     
     # load texture parameters
     self.se_params_tex: List[SEParamter] = []
@@ -180,12 +183,14 @@ class SESceneParamters:
       param_i = SEParamter(primal_buffer, grad_buffer, 
         packet.offset_primal, packet.offset_grad, 
         [packet.dim_0, packet.dim_1, packet.dim_2], packet.default_value)
+      self.param_count += packet.dim_0 * packet.dim_1 * packet.dim_2
+      self.packet_count += 1
       self.se_params_tex.append(param_i)
     self.torch_params_tex: List[torch.nn.Parameter] = [param.prim_torch_param for param in self.se_params_tex]
-
+    
   def fetch_all_texture_params(self):
     return self.torch_params_tex
-
+  
 class SEApplication:
   def __init__(self):
     self.ctx = SEContext(with_window=True, with_editor=True)

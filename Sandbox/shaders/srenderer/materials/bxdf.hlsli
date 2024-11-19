@@ -13,6 +13,7 @@ struct eval_in {
     float3 wo;
     float3 geometric_normal;
     Frame shading_frame;
+    float3 wh;
 };
 
 struct sample_in {
@@ -41,6 +42,7 @@ struct pdf_in {
 struct bwd_in {
     eval_in eval;
     int hash_value;
+    float pdf;
 };
 
 struct dsample_out<TBxDFParameter : IBxDFParameter> {
@@ -224,13 +226,15 @@ TMicrofacetDistribution.TParam.Differential bwd_eval<
     
     // return dParam;
 }
+
 // importance sample the BSDF
 ibsdf::sample_out sample_vnormal<TMicrofacetDistribution : IMicrofacetDistribution>(
     ibsdf::sample_in i,
     TMicrofacetDistribution.TParam parameter) {
     ibsdf::sample_out o;
     // Sample microfacet orientation wh and reflected direction wi
-    const float3 wi = i.shading_frame.to_local(i.wi);
+    float3 wi = i.shading_frame.to_local(i.wi);
+    if (wi.z < 0) wi.z = -wi.z;
     const float3 wh = TMicrofacetDistribution::sample_wh_vnormal(wi, i.u.xy, parameter);
     // const float3 wh = sample_cos_hemisphere(i.u);
     const float3 wo = reflect(-wi, wh);
@@ -296,63 +300,26 @@ float pdf<TMicrofacetDistribution : IMicrofacetDistribution>
 float4 sample_pos<TMicrofacetDerivative : IMicrofacetDerivative>(
     ibsdf::sample_in i,
     TMicrofacetDerivative.TParam parameter) {
-    float4 o;
-    // For Lambertian, we importance sample the cosine hemisphere domain.
-    if (dot(i.geometric_normal, i.wi) < 0) {
-        // Incoming direction is below the surface.
-        o.rgb = float3(0);
-        o.a = 0;
-        return o;
-    }
-
     // Sample microfacet orientation wh and reflected direction wi
-    const float3 wi = i.shading_frame.to_local(i.wi);
+    float3 wi = i.shading_frame.to_local(i.wi);
+    if (wi.z < 0) { wi.z = -wi.z; i.wi = i.shading_frame.to_world(wi); }
     const float3 wh = TMicrofacetDerivative::sample_pos_wh(wi, i.u.xy, parameter);
-    const float3 wo = reflect(-wi, wh);
-    o.rgb = i.shading_frame.to_world(wo);
-    // Compute PDF of wi for microfacet reflection
-    float VdotH = dot(wi, wh);
     const float pdf = TMicrofacetDerivative::pdf_pos(wi, wh, parameter);
-    o.a = pdf / (4 * abs(VdotH));
-
-    // reject samples below the surface
-    if (wo.z < 0.f) {
-        o.rgb = normalize(float3(0.f));
-        // o.a = 0.f;
-    }
-    return o;
+    return float4(wh, pdf);
 }
+
 // importance sample the BSDF Derivative, negative part
 float4 sample_neg<TMicrofacetDerivative : IMicrofacetDerivative>(
     ibsdf::sample_in i,
     TMicrofacetDerivative.TParam parameter) {
-    float4 o;
-    // For Lambertian, we importance sample the cosine hemisphere domain.
-    if (dot(i.geometric_normal, i.wi) < 0) {
-        // Incoming direction is below the surface.
-        o.rgb = float3(0);
-        o.a = 0;
-        return o;
-    }
-
     // Sample microfacet orientation wh and reflected direction wi
-    const float3 wi = i.shading_frame.to_local(i.wi);
+    float3 wi = i.shading_frame.to_local(i.wi);
+    if (wi.z < 0) { wi.z = -wi.z; i.wi = i.shading_frame.to_world(wi); }
     const float3 wh = TMicrofacetDerivative::sample_neg_wh(wi, i.u.xy, parameter);
-    const float3 wo = reflect(-wi, wh);
-    o.rgb = i.shading_frame.to_world(wo);
-    // Compute PDF of wi for microfacet reflection
-    float VdotH = dot(wi, wh);
     const float pdf = TMicrofacetDerivative::pdf_neg(wi, wh, parameter);
-    o.a = pdf / (4 * abs(VdotH));
-
-    // reject samples below the surface
-    if (wo.z < 0.f) {
-        o.rgb = normalize(float3(0.f));
-        // o.a = 0.f;
-    }
-
-    return o;
+    return float4(wh, pdf);
 }
+
 float testtest(float theta, float alpha) {
     float x = acos(theta);
     float ct = cos(x);
@@ -367,6 +334,7 @@ float testtest(float theta, float alpha) {
     float result = numerator / denominator;
     return result;
 }
+
 // importance sample the BSDF Derivative, positive part
 float pdf_pos<TMicrofacetDerivative : IMicrofacetDerivative>(
     ibsdf::pdf_in i,
@@ -377,6 +345,7 @@ float pdf_pos<TMicrofacetDerivative : IMicrofacetDerivative>(
     // Compute PDF of wi for microfacet reflection
     return TMicrofacetDerivative::pdf_pos(wi, wh, parameter);
 }
+
 // importance sample the BSDF Derivative, negative part
 float pdf_neg<TMicrofacetDerivative : IMicrofacetDerivative>(
     ibsdf::pdf_in i,

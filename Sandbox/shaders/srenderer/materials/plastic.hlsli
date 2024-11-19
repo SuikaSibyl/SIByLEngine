@@ -19,9 +19,9 @@
 struct PlasticMaterial : IBxDFParameter {
     float3 Kd;
     float3 Ks;
-    float alpha;
-    float3 eta; // real component of IoR
-
+    float alpha; // roughness
+    float eta;   // eta of the dielectric layer
+    
     __init() {}
     __init(MaterialData mat, float2 uv) {
         Kd = mat.floatvec_0.xyz * sampleTexture(mat.albedo_tex, uv).rgb;
@@ -139,11 +139,11 @@ struct PlasticBRDF : IBxDF {
         no_diff float3 wi,
         no_diff float3 wo,
         no_diff float3 wh,
-        float3 eta,
+        float eta,
         IsotropicTrowbridgeReitzParameter params
     ) {
         // Evaluate Fresnel factor F for conductor BRDF
-        float3 F = FresnelDielectric(abs(dot(wi, wh)), average(eta));
+        float3 F = FresnelDielectric(abs(dot(wi, wh)), eta);
         float3 f = IsotropicTrowbridgeReitzDistribution::D(wh, params)
                     * IsotropicTrowbridgeReitzDistribution::G(wo, wi, params)
                     * F / (4 * theta_phi_coord::AbsCosTheta(wi));
