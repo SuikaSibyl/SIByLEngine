@@ -274,26 +274,18 @@ ibsdf::sample_out sample_normal<TMicrofacetDistribution : IMicrofacetDistributio
     return o;
 }
 // Evaluate the PDF of the BSDF sampling
-float pdf<TMicrofacetDistribution : IMicrofacetDistribution>
+float pdf_vnormal<TMicrofacetDistribution : IMicrofacetDistribution>
     (ibsdf::pdf_in i,
-    TMicrofacetDistribution distribution,
     TMicrofacetDistribution.TParam parameter) {
-    return 1.f;
-    // if (dot(i.geometric_normal, i.wi) < 0 ||
-    //     dot(i.geometric_normal, i.wo) < 0) {
-    //     // No light below the surface
-    //     return float(0);
-    // }
-    // // Flip the shading frame if it is
-    // // inconsistent with the geometry normal.
-    // Frame frame = i.shading_frame;
-    // float3 wi = frame.to_local(i.wi);
-    // float3 wo = frame.to_local(i.wo);
-    // float3 wh = normalize(wi + wo);
-
-    // float VdotH = dot(wi, wh);
-    // const float pdf = distribution.pdf(wi, wh, parameter);
-    // return pdf / (4 * abs(VdotH));
+    ibsdf::sample_out o;
+    // Sample microfacet orientation wh and reflected direction wi
+    float3 wi = i.shading_frame.to_local(i.wi);
+    if (wi.z < 0) wi.z = -wi.z;
+    const float3 wh = i.shading_frame.to_local(i.wh);
+    float VdotH = dot(wi, wh);
+    const float pdf = TMicrofacetDistribution::pdf_vnormal(wi, wh, parameter);
+    // const float pdf = pdf_cos_hemisphere(wh);
+    return pdf / (4 * abs(VdotH));
 }
 
 // importance sample the BSDF Derivative, positive part

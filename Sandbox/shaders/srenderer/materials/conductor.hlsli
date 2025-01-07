@@ -221,7 +221,7 @@ struct ConductorBRDF : IBxDF {
         // bwd_diff(eval)(i.eval, material_pair, float3(1, 1, 1));
 
         float2 dd_dg_dalpha = manual_backward_dalpha(i.eval, material, float3(1, 1, 1));
-        float dalpha = max(dd_dg_dalpha.x, 0); // + dd_dg_dalpha.y;
+        float dalpha = max(dd_dg_dalpha.x, 0) + dd_dg_dalpha.y;
         // float dalpha = dd_dg_dalpha.y;
 
         // postprocess the derivatives
@@ -243,7 +243,7 @@ struct ConductorBRDF : IBxDF {
         // float dalpha = material_pair.d.alpha;
 
         float2 dd_dg_dalpha = manual_backward_dalpha(i.eval, material, float3(1, 1, 1));
-        float dalpha = min(dd_dg_dalpha.x, 0); // + dd_dg_dalpha.y;
+        float dalpha = min(dd_dg_dalpha.x, 0) + dd_dg_dalpha.y;
 
         // postprocess the derivatives
         ConductorMaterial.Differential d_material;

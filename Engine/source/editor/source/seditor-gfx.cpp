@@ -674,7 +674,7 @@ void drawNodeInspector(gfx::Node& node) {
           if (ImGui::DragFloat3("##Trans", translation, 0.05, 0, 1)) {
             //material->isDirty = true;
             component->translation = { translation[0], translation[1], translation[2] };
-            if (scene.get()) scene->dirtyFlags |= (uint32_t)gfx::Scene::DirtyFlagBit::Camera;
+            if (scene.get()) scene->dirtyFlags |= (uint32_t)gfx::Scene::DirtyFlagBit::Transform;
           }
         }
         { // scale
@@ -689,7 +689,7 @@ void drawNodeInspector(gfx::Node& node) {
           if (ImGui::DragFloat3("##Scale", scale, 0.05, 0, 1)) {
             //material->isDirty = true;
             component->scale = { scale[0], scale[1], scale[2] };
-            if (scene.get()) scene->dirtyFlags |= (uint32_t)gfx::Scene::DirtyFlagBit::Camera;
+            if (scene.get()) scene->dirtyFlags |= (uint32_t)gfx::Scene::DirtyFlagBit::Transform;
           }
         }
         ImGui::EndTable();

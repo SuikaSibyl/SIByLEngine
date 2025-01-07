@@ -30,12 +30,17 @@ namespace tiny_pbrt_loader {
     float v[3];
     Vector3f() { v[0] = 0; v[1] = 0; v[2] = 0; }
     Vector3f(float x, float y, float z) { v[0] = x; v[1] = y; v[2] = z; }
+    auto x() -> float { return v[0]; }
+    auto y() -> float { return v[1]; }
+    auto z() -> float { return v[2]; }
+    Vector3f operator/(float denom) const { return Vector3f{ v[0] / denom, v[1] / denom ,v[2] / denom }; }
   };
 
   struct Point3f {
     float v[3];
     Point3f() { v[0] = 0; v[1] = 0; v[2] = 0; }
     Point3f(float x, float y, float z) { v[0] = x; v[1] = y; v[2] = z; }
+    Vector3f operator-(Point3f const& p) const { return { v[0] - p.v[0], v[1] - p.v[1] ,v[2] - p.v[2] }; }
   };
 
   struct Normal3f {

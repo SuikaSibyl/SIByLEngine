@@ -107,9 +107,9 @@ struct MediumPacket {
     float scale = 1.0f;
     float3 aniso = float3(0, 0, 0);
     float temperatureScale = 0.0f;
-    float3 bound_min;
-    float LeScale;
-    float3 bound_max;
+    float3 bound_min = {0, 0, 0};
+    float LeScale = 0.0f;
+    float3 bound_max = { 0, 0, 0 };
     MediumType medium_type = MediumType::HOMOGENEOUS;
     int3 density_xyz;
     int density_offset;

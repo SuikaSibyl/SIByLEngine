@@ -6,6 +6,8 @@
 #include "materials/plastic.hlsli"
 #include "materials/orennayar.hlsli"
 #include "materials/mixture.hlsli"
+#include "materials/refract.hlsli"
+#include "materials/rglbrdf.hlsli"
 
 /**
  * "materials" namespace contains unified interface to evaluate and sample BSDFs.
@@ -30,6 +32,7 @@ float3 bsdf_eval(ibsdf::eval_in i, MaterialData material, float2 uv) {
     case 2: return PlasticBRDF::eval(i, PlasticMaterial(material, uv));
     case 3: return OrenNayarBRDF::eval(i, OrenNayarMaterial(material, uv));
     case 4: return MixtureBRDF::eval(i, MixtureMaterial(material, uv));
+    case 5: return RefractBRDF::eval(i, RefractMaterial(material, uv));
     }
     return float3(0, 0, 0);
 }
@@ -48,6 +51,53 @@ ibsdf::sample_out bsdf_sample(ibsdf::sample_in i, MaterialData material, float2 
     case 2: return PlasticBRDF::sample(i, PlasticMaterial(material, uv));
     case 3: return OrenNayarBRDF::sample(i, OrenNayarMaterial(material, uv));
     case 4: return MixtureBRDF::sample(i, MixtureMaterial(material, uv));
+    case 5: return RefractBRDF::sample(i, RefractMaterial(material, uv));
+    }
+    return o;
+}
+
+/**
+ * Sample the primal BSDF
+ * @param i: input sample information
+ * @param material: material data
+ * @param uv: texture coordinate
+ */
+ibsdf::sample_out bsdf_sample_with_perchannel_cv(
+    ibsdf::sample_in i, MaterialData material, float2 uv, out float3 cv) {
+    cv = float3(1, 1, 1);
+    ibsdf::sample_out o;
+    switch (material.bxdf_type) {
+    case 0: return LambertianBRDF::sample(i, LambertMaterial(material, uv));
+    case 1: return ConductorBRDF::sample(i, ConductorMaterial(material, uv));
+    case 2: return PlasticBRDF::sample(i, PlasticMaterial(material, uv));
+    case 3: return OrenNayarBRDF::sample(i, OrenNayarMaterial(material, uv));
+    case 4: return MixtureBRDF::sample(i, MixtureMaterial(material, uv));
+    case 5: return RefractBRDF::sample(i, RefractMaterial(material, uv));
+    case 10: {
+        RGLMaterial material = RGLMaterial(0);
+        ibsdf::sample_out sample_o = RGLBRDF::sample_with_perchannel_cv(i, material, cv);
+        cv = discard_nan_inf(cv / sample_o.pdf);
+        return sample_o;
+    }
+    }
+    return o;
+}
+
+/**
+ * Sample the primal BSDF
+ * @param i: input sample information
+ * @param material: material data
+ * @param uv: texture coordinate
+ */
+ibsdf::sample_out bsdf_sample_safe(ibsdf::sample_in i, MaterialData material, float2 uv) {
+    ibsdf::sample_out o;
+    switch (material.bxdf_type) {
+    case 0: return LambertianBRDF::sample(i, LambertMaterial(material, uv));
+    case 1: return ConductorBRDF::sample(i, ConductorMaterial(material, uv));
+    case 2: return PlasticBRDF::sample(i, PlasticMaterial(material, uv));
+    case 3: return OrenNayarBRDF::sample(i, OrenNayarMaterial(material, uv));
+    case 4: return MixtureBRDF::sample_safe(i, MixtureMaterial(material, uv));
+    case 5: return RefractBRDF::sample(i, RefractMaterial(material, uv));
     }
     return o;
 }
@@ -66,6 +116,7 @@ float bsdf_sample_pdf(ibsdf::pdf_in i, MaterialData material, float2 uv) {
     case 2: return PlasticBRDF::pdf(i, PlasticMaterial(material, uv));
     case 3: return OrenNayarBRDF::pdf(i, OrenNayarMaterial(material, uv));
     case 4: return MixtureBRDF::pdf(i, MixtureMaterial(material, uv));
+    case 5: return RefractBRDF::pdf(i, RefractMaterial(material, uv));
     }
     return 0.f;
 }
@@ -101,7 +152,7 @@ void bsdf_backward_grad_ratio(
     // case 0: LambertianBRDF::backward_grad(i, dL, material, uv); break;
     // case 1: ConductorBRDF::backward_grad(i, dL, material, uv); break;
     case 3: OrenNayarBRDF::backward_grad_ratio(i, dL, material, uv); break;
-    // case 4: MixtureBRDF::backward_grad(i, dL, material, uv); break;
+    case 4: MixtureBRDF::backward_grad_ratio(i, dL, material, uv); break;
     }
 }
 
@@ -117,6 +168,10 @@ void bsdf_backward_grad_nth(ibsdf::bwd_in i, float3 dL, MaterialData material, f
     switch (index) {
     case 1: brdfd_techniques::bsdf_backward_grad_1st(i, dL, material, uv); break;
     case 2: brdfd_techniques::bsdf_backward_grad_2nd(i, dL, material, uv); break;
+    case 3: brdfd_techniques::bsdf_backward_grad_3rd(i, dL, material, uv); break;
+    case 4: brdfd_techniques::bsdf_backward_grad_4th(i, dL, material, uv); break;
+    case 5: brdfd_techniques::bsdf_backward_grad_5th(i, dL, material, uv); break;
+    case 6: brdfd_techniques::bsdf_backward_grad_6th(i, dL, material, uv); break;
     }
 }
 
@@ -131,8 +186,12 @@ void bsdf_backward_grad_nth(ibsdf::bwd_in i, float3 dL, MaterialData material, f
 ibsdf::sample_out bsdf_sample_d_nth(
     ibsdf::sample_in i, MaterialData material, float2 uv, int index) {
     switch (index) {
-    case 1: return brdfd_techniques::bsdf_sample_d_1st(i, material, uv); break;
-    case 2: return brdfd_techniques::bsdf_sample_d_2nd(i, material, uv); break;
+    case 1: return brdfd_techniques::bsdf_sample_d_1st(i, material, uv);
+    case 2: return brdfd_techniques::bsdf_sample_d_2nd(i, material, uv);
+    case 3: return brdfd_techniques::bsdf_sample_d_3rd(i, material, uv);
+    case 4: return brdfd_techniques::bsdf_sample_d_4th(i, material, uv);
+    case 5: return brdfd_techniques::bsdf_sample_d_5th(i, material, uv);
+    case 6: return brdfd_techniques::bsdf_sample_d_6th(i, material, uv);
     }
     return {};
 }
@@ -155,7 +214,6 @@ float bsdf_pdf_d_nth(
 }
 
 namespace brdfd_techniques {
-
     /**
     * Evaluate the BSDF derivative, specialized for 1st derivative sampling lobe
     * @param i: input evaluate information
@@ -168,7 +226,58 @@ namespace brdfd_techniques {
         switch (material.bxdf_type) {
         case 1: ConductorBRDF::backward_alpha_derivative_pos(i, dL, material, uv); break;
         case 3: OrenNayarBRDF::backward_sigma_derivative_diffuse(i, dL, material, uv); break;
-        case 4: MixtureBRDF::backward_alpha_derivative_diffuse(i, dL, material, uv); break;
+        case 4: MixtureBRDF::backward_weight_derivative_diffuse(i, dL, material, uv); break;
+        }
+    }
+
+    /**
+     * Evaluate the BSDF derivative, specialized for 1st derivative sampling lobe
+     * @param i: input evaluate information
+     * @param dL: adjoint radiance contribution
+     * @param material: material data
+     * @param uv: texture coordinate
+     */
+    void bsdf_backward_grad_2nd(ibsdf::bwd_in i, float3 dL, MaterialData material, float2 uv) {
+        ibsdf::sample_out o;
+        switch (material.bxdf_type) {
+        case 1: ConductorBRDF::backward_alpha_derivative_neg(i, dL, material, uv); break;
+        case 3: OrenNayarBRDF::backward_sigma_derivative_spec(i, dL, material, uv); break;
+        case 4: MixtureBRDF::backward_weight_derivative_spec(i, dL, material, uv); break;
+        }
+    }
+
+    /**
+     * Evaluate the BSDF derivative, specialized for 1st derivative sampling lobe
+     * @param i: input evaluate information
+     * @param dL: adjoint radiance contribution
+     * @param material: material data
+     * @param uv: texture coordinate
+     */
+    void bsdf_backward_grad_3rd(ibsdf::bwd_in i, float3 dL, MaterialData material, float2 uv) {
+        ibsdf::sample_out o;
+        switch (material.bxdf_type) {
+        case 4: MixtureBRDF::backward_sigma_derivative_lambert(i, dL, material, uv); break;
+        }
+    }
+
+    void bsdf_backward_grad_4th(ibsdf::bwd_in i, float3 dL, MaterialData material, float2 uv) {
+        ibsdf::sample_out o;
+        switch (material.bxdf_type) {
+        case 4: MixtureBRDF::backward_sigma_derivative_nonlambert(i, dL, material, uv); break;
+        }
+    }
+
+    void bsdf_backward_grad_5th(ibsdf::bwd_in i, float3 dL, MaterialData material, float2 uv) {
+        ibsdf::sample_out o;
+        switch (material.bxdf_type) {
+        case 4: MixtureBRDF::backward_ggx_alpha_derivative_pos(i, dL, material, uv); break;
+        }
+    }
+    
+    void bsdf_backward_grad_6th(ibsdf::bwd_in i, float3 dL, MaterialData material, float2 uv) {
+        ibsdf::sample_out o;
+        switch (material.bxdf_type) {
+        case 4: MixtureBRDF::backward_ggx_alpha_derivative_neg(i, dL, material, uv); break;
         }
     }
 
@@ -191,6 +300,61 @@ namespace brdfd_techniques {
     }
 
     /**
+     * Sample the 2md BSDF derivative sampling lobe
+     * @param i: input sample information
+     * @param material: material data
+     * @param uv: texture coordinate
+     */
+    ibsdf::sample_out bsdf_sample_d_2nd(ibsdf::sample_in i, MaterialData material, float2 uv) {
+        ibsdf::sample_out o;
+        switch (material.bxdf_type) {
+        case 0: return LambertianBRDF::sample(i, LambertMaterial(material, uv));
+        case 1: return ConductorBRDF::sample_alpha_derivative_neg(i, ConductorMaterial(material, uv));
+        case 3: return OrenNayarBRDF::sample_sigma_derivative_spec(i, OrenNayarMaterial(material, uv));
+        case 4: return MixtureBRDF::sample_alpha_derivative_spec(i, MixtureMaterial(material, uv));
+        }
+        return o;
+    }
+
+    /**
+     * Sample the 3rd BSDF derivative sampling lobe
+     * @param i: input sample information
+     * @param material: material data
+     * @param uv: texture coordinate
+     */
+    ibsdf::sample_out bsdf_sample_d_3rd(ibsdf::sample_in i, MaterialData material, float2 uv) {
+        ibsdf::sample_out o;
+        switch (material.bxdf_type) {
+        case 4: return MixtureBRDF::sample_sigma_derivative_lambert(i, MixtureMaterial(material, uv));
+        }
+        return o;
+    }
+
+    ibsdf::sample_out bsdf_sample_d_4th(ibsdf::sample_in i, MaterialData material, float2 uv) {
+        ibsdf::sample_out o;
+        switch (material.bxdf_type) {
+        case 4: return MixtureBRDF::sample_sigma_derivative_nonlambert(i, MixtureMaterial(material, uv));
+        }
+        return o;
+    }
+
+    ibsdf::sample_out bsdf_sample_d_5th(ibsdf::sample_in i, MaterialData material, float2 uv) {
+        ibsdf::sample_out o;
+        switch (material.bxdf_type) {
+        case 4: return MixtureBRDF::sample_ggx_alpha_derivative_pos(i, MixtureMaterial(material, uv));
+        }
+        return o;
+    }
+
+    ibsdf::sample_out bsdf_sample_d_6th(ibsdf::sample_in i, MaterialData material, float2 uv) {
+        ibsdf::sample_out o;
+        switch (material.bxdf_type) {
+        case 4: return MixtureBRDF::sample_ggx_alpha_derivative_neg(i, MixtureMaterial(material, uv));
+        }
+        return o;
+    }
+
+    /**
     * Evaluate the PDF of the 1st BSDF derivative sampling lobe
     * @param i: input evaluate information
     * @param dL: adjoint radiance contribution
@@ -204,39 +368,6 @@ namespace brdfd_techniques {
         case 1: return ConductorBRDF::pdf_alpha_derivative_pos(i, ConductorMaterial(material, uv));
         }
         return {};
-    }
-
-    /**
-    * Evaluate the BSDF derivative, specialized for 1st derivative sampling lobe
-    * @param i: input evaluate information
-    * @param dL: adjoint radiance contribution
-    * @param material: material data
-    * @param uv: texture coordinate
-    */
-    void bsdf_backward_grad_2nd(ibsdf::bwd_in i, float3 dL, MaterialData material, float2 uv) {
-        ibsdf::sample_out o;
-        switch (material.bxdf_type) {
-        case 1: ConductorBRDF::backward_alpha_derivative_neg(i, dL, material, uv); break;
-        case 3: OrenNayarBRDF::backward_sigma_derivative_spec(i, dL, material, uv); break;
-        case 4: MixtureBRDF::backward_alpha_derivative_spec(i, dL, material, uv); break;
-        }
-    }
-    
-    /**
-    * Sample the 2md BSDF derivative sampling lobe
-    * @param i: input sample information
-    * @param material: material data
-    * @param uv: texture coordinate
-    */
-    ibsdf::sample_out bsdf_sample_d_2nd(ibsdf::sample_in i, MaterialData material, float2 uv) {
-        ibsdf::sample_out o;
-        switch (material.bxdf_type) {
-        case 0: return LambertianBRDF::sample(i, LambertMaterial(material, uv));
-        case 1: return ConductorBRDF::sample_alpha_derivative_neg(i, ConductorMaterial(material, uv));
-        case 3: return OrenNayarBRDF::sample_sigma_derivative_spec(i, OrenNayarMaterial(material, uv));
-        case 4: return MixtureBRDF::sample_alpha_derivative_spec(i, MixtureMaterial(material, uv));
-        }
-        return o;
     }
 
     /**

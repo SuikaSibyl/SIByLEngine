@@ -44,12 +44,11 @@ struct OrenNayarMaterial : IBxDFParameter {
 
     [BackwardDifferentiable]
     static OrenNayarMaterial load_w_aux(
-        no_diff MaterialData data, no_diff float2 uv, 
-        no_diff float sigma_aux
+        no_diff MaterialData data, no_diff float2 uv,
+        no_diff float5 sigma_aux
     ) {
-        const float ext_tex_r = SampleTexture2D_w_aux(
-            data.ext1_tex, uv,
-            float4(sigma_aux, 0, 0, 0),
+        const float ext_tex_r = SampleTexture2D_one_channel_ratio(
+            data.ext1_tex, uv, 0, sigma_aux,
             data.is_ext1_tex_differentiable()) .r;
         
         OrenNayarMaterial material = no_diff OrenNayarMaterial();
@@ -143,10 +142,29 @@ struct OrenNayarBRDF : IBxDF {
         float2 texcoord
     ) { 
         OrenNayarMaterial material = OrenNayarMaterial(mat, texcoord);
+
+        ibsdf::pdf_in pi;
+        pi.wi = i.eval.wi;
+        pi.wo = i.eval.wo;
+        pi.geometric_normal = i.eval.geometric_normal;
+        pi.shading_frame = i.eval.shading_frame;
+        
+        float5 aux;
+        // sigma aux 0: the gradient of the first term
         var material_pair = diffPair(material);
-        bwd_diff(eval)(i.eval, material_pair, dL);
-        float aux = 1.f / (i.pdf * k_2pi);
-        bwd_diff(OrenNayarMaterial::load_w_aux)(mat, texcoord, aux, material_pair.d);
+        bwd_diff(eval_term1)(i.eval, material_pair, dL);
+        aux.data[0] = material_pair.d.sigma;
+        // sigma aux 1: the gradient of the second term
+        material_pair = diffPair(material);
+        bwd_diff(eval_term2)(i.eval, material_pair, dL);
+        aux.data[1] = material_pair.d.sigma;
+        // sigma aux 2: the PDF of sampling the first term
+        aux.data[2] = pdf_term1(pi) / i.pdf;
+        // sigma aux 3: the PDF of sampling the second term
+        aux.data[3] = pdf_term2(pi) / i.pdf;
+        // sigma aux 4: estimate the actual H
+        aux.data[4] = 1;
+        bwd_diff(OrenNayarMaterial::load_w_aux)(mat, texcoord, aux, {});
     }
 
     static void backward_sigma_derivative_diffuse(
@@ -193,7 +211,7 @@ struct OrenNayarBRDF : IBxDF {
         const float phi_o = sample_dsigma_t2_phi(theta_phi_coord::Phi(wi), i.u.x);
         const float theta_o = sample_dsigma_t2_theta(theta_phi_coord::Theta(wi), i.u.y);
         const float3 wo = theta_phi_coord::SphericalDirection(theta_o, phi_o);
-
+        
         // evaluate the pdf
         ibsdf::pdf_in pi;
         pi.wi = i.wi;
@@ -225,7 +243,7 @@ struct OrenNayarBRDF : IBxDF {
     
     // evaluate the PDF of the first term of the BSDF
     // here we simply use cosine-weighted hemisphere sampling
-    float pdf_term1(ibsdf::pdf_in i) {
+    static float pdf_term1(ibsdf::pdf_in i) {
         Frame frame = i.shading_frame;
         return max(dot(frame.n, i.wo), float(0)) * k_inv_pi;
     }
@@ -266,7 +284,13 @@ struct OrenNayarBRDF : IBxDF {
         const float B = 0.45 * sigma2 / (sigma2 + 0.09);
         return material.R * k_inv_pi * B * maxCos * sinAlpha * tanBeta * abs(wo.z);
     }
-
+    
+    // evaluate the PDF of the first term of the BSDF
+    // here we simply use cosine-weighted hemisphere sampling
+    static float pdf_term2(ibsdf::pdf_in i) {
+        return pdf_dsigma_term2(i);
+    }
+    
     // The CDF of the second term of the BSDF derivative
     // one less that theta_o and the other one more than it
     [Differentiable]

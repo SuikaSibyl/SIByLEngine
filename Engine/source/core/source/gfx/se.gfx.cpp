@@ -554,6 +554,7 @@ auto SlangSession::load(
     }
     componentTypes.push_back(entryPointsPtrs[i]);
   }
+
   // compile the session
   ComPtr<slang::IBlob> diagnosticBlob;
   ComPtr<slang::IComponentType> composedProgram;

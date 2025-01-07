@@ -2656,9 +2656,57 @@ namespace tiny_pbrt_loader {
   void BasicSceneBuilder::Scale(Float sx, Float sy, Float sz, FileLoc loc) {
 
   }
+
+  auto sqr(float a) -> float { return a * a; }
+  auto LengthSquared(Vector3f const& v) -> float { return sqr(v.v[0]) + sqr(v.v[1]) + sqr(v.v[2]); }
+  auto Length(Vector3f const& v) -> float { return std::sqrt(LengthSquared(v)); }
+  auto Normalize(Vector3f const& v) -> Vector3f { return v / Length(v); }
+
+  Vector3f Cross(Vector3f v1, Vector3f v2) {
+    return { DifferenceOfProducts(v1.y(), v2.z(), v1.z(), v2.y()),
+            DifferenceOfProducts(v1.z(), v2.x(), v1.x(), v2.z()),
+            DifferenceOfProducts(v1.x(), v2.y(), v1.y(), v2.x()) };
+  }
+
+  PBRT_CPU_GPU Transform pbrt_LookAt(Point3f pos, Point3f look, Vector3f up) {
+    SquareMatrix<4> worldFromCamera;
+    // Initialize fourth column of viewing matrix
+    worldFromCamera[0][3] = pos.v[0];
+    worldFromCamera[1][3] = pos.v[1];
+    worldFromCamera[2][3] = pos.v[2];
+    worldFromCamera[3][3] = 1;
+
+    // Initialize first three columns of viewing matrix
+    Vector3f dir = Normalize(look - pos);
+    if (Length(Cross(Normalize(up), dir)) == 0)
+      LOG_FATAL("LookAt: \"up\" vector (%f, %f, %f) and viewing direction "
+        "(%f, %f, %f) "
+        "passed to LookAt are pointing in the same direction.",
+        up.x, up.y, up.z, dir.x, dir.y, dir.z);
+    Vector3f right = Normalize(Cross(Normalize(up), dir));
+    Vector3f newUp = Cross(dir, right);
+    worldFromCamera[0][0] = right.x();
+    worldFromCamera[1][0] = right.y();
+    worldFromCamera[2][0] = right.z();
+    worldFromCamera[3][0] = 0.;
+    worldFromCamera[0][1] = newUp.x();
+    worldFromCamera[1][1] = newUp.y();
+    worldFromCamera[2][1] = newUp.z();
+    worldFromCamera[3][1] = 0.;
+    worldFromCamera[0][2] = dir.x();
+    worldFromCamera[1][2] = dir.y();
+    worldFromCamera[2][2] = dir.z();
+    worldFromCamera[3][2] = 0.;
+
+    SquareMatrix<4> cameraFromWorld = InvertOrExit(worldFromCamera);
+    return Transform(cameraFromWorld, worldFromCamera);
+  }
+  
   void BasicSceneBuilder::LookAt(Float ex, Float ey, Float ez, Float lx, Float ly, Float lz, Float ux,
     Float uy, Float uz, FileLoc loc) {
-
+    class Transform lookAt =
+      pbrt_LookAt(Point3f(ex, ey, ez), Point3f(lx, ly, lz), Vector3f(ux, uy, uz));
+    graphicsState.ForActiveTransforms([=](auto t) { return t * lookAt; });
   }
   PBRT_CPU_GPU inline Transform Transpose(const Transform& t) {
     return Transform(Transpose(t.GetMatrix()), Transpose(t.GetInverseMatrix()));

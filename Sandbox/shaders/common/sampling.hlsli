@@ -6,9 +6,15 @@
 #include "error.hlsli"
 #include "random.hlsli"
 
-/**
- * Uiform sample on 3D geometrics
- */
+/** Uniform sample on 2D disk boundary */
+float2 uniform_on_disk(float u) {
+    float phi = 2.0f * M_PI * u;
+    float sin_phi; float cos_phi;
+    sincos(phi, sin_phi, cos_phi);
+    return float2(cos_phi, sin_phi);
+}
+
+/** Uiform sample on 3D sphere boundary */
 float3 UniformOnSphere(in_ref(float2) u) {
     const float z = 1.0f - 2.0f * u.x;
     float r = sqrt(max(0.0f, 1.0f - z * z));

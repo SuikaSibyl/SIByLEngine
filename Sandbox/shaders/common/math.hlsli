@@ -1,7 +1,8 @@
 #ifndef _SRENDERER_COMMMON_MATH_HEADER_
 #define _SRENDERER_COMMMON_MATH_HEADER_
 
-static const float k_pi         = 3.1415926535897932f;
+static const float k_pi = 3.1415926535897932f;
+static const float M_PI = 3.1415926535897932f;
 static const float k_2pi        = 6.2831853071795864f;
 static const float k_pi_over_2  = k_pi / 2;
 static const float k_pi_over_4  = k_pi / 4;
@@ -10,6 +11,7 @@ static const float k_inv_2_pi = 1. / (2 * k_pi);
 static const float k_inv_4_pi = 0.07957747154594766788;
 
 static const float k_inf        = 1.0f / 0.0f;
+static const float k_nan        = 0.0f / 0.0f;
 
 static const float k_numeric_limits_float_min = 1.0f / exp2(126);
 static const float k_numeric_limits_float_max = 3.402823466e+38;
@@ -134,6 +136,7 @@ float hypot(float x, float y, float z, float w) { return length(float4(x, y, z, 
 
 float copysign(float mag, float sign) { return (sign >= 0) ? abs(mag) : -abs(mag); }
 
+[Differentiable]
 float discard_nan_inf(float v) { return (isinf(v) || isnan(v)) ? 0 : v; }
 float2 discard_nan_inf(float2 v) { return select(isinf(v) || isnan(v), 0, v); }
 float3 discard_nan_inf(float3 v) { return select(isinf(v) || isnan(v), 0, v); }
@@ -361,8 +364,22 @@ float sample_exponential(float u, float a) { return -log(1 - u) / a; }
 float2 fast_exp(float2 v) { return float2(exp(v.x), exp(v.y)); }
 float3 fast_exp(float3 v) { return float3(exp(v.x), exp(v.y), exp(v.z)); }
 
-struct float8 {
-    float4 lo, hi;
-};
+struct float5 { float data[5]; };
+float5 operator *(float5 a, float b) {
+    return { a.data[0] * b, a.data[1] * b, a.data[2] * b, a.data[3] * b, a.data[4] * b };
+}
+
+struct float6 { float4 lo; float2 hi; };
+struct float7 { float4 lo; float3 hi; };
+struct float8 { float4 lo, hi; };
+
+[Differentiable] float2x2 compose2x2(float a, float b, float c, float d) {
+    float2x2 m;
+    m[0][0] = a;
+    m[0][1] = b;
+    m[1][0] = c;
+    m[1][1] = d;
+    return m;
+}
 
 #endif // !_SRENDERER_COMMMON_MATH_HEADER_

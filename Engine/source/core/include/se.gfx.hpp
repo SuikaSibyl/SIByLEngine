@@ -809,6 +809,7 @@ struct SIByL_API Scene : public Resource {
     Material    = 1 << 2,
     Light       = 1 << 3,
     Medium      = 1 << 4,
+    Transform   = 1 << 5,
     ALL         = (1 << 10) - 1,
   };
   uint64_t dirtyFlags = 0;

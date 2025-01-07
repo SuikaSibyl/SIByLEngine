@@ -501,7 +501,78 @@ auto Scene::serialize() noexcept -> tinygltf::Model {
       MediumHandle medium = pair.second.first;
       tinygltf::Value::Object media_extra;
       media_extra["type"] = tinygltf::Value(int(medium->packet.type));
-      if (medium->packet.type == Medium::MediumType::RGBGridMedium) {
+
+      if (medium->packet.type == Medium::MediumType::Homogeneous) {
+        media_extra["scale"] = tinygltf::Value(medium->packet.scale);
+        media_extra["bound_min_x"] = tinygltf::Value(medium->packet.bound_min.x);
+        media_extra["bound_min_y"] = tinygltf::Value(medium->packet.bound_min.y);
+        media_extra["bound_min_z"] = tinygltf::Value(medium->packet.bound_min.z);
+        media_extra["bound_max_x"] = tinygltf::Value(medium->packet.bound_max.x);
+        media_extra["bound_max_y"] = tinygltf::Value(medium->packet.bound_max.y);
+        media_extra["bound_max_z"] = tinygltf::Value(medium->packet.bound_max.z);
+        media_extra["grid_nx"] = tinygltf::Value(medium->packet.density_nxyz.x);
+        media_extra["grid_ny"] = tinygltf::Value(medium->packet.density_nxyz.y);
+        media_extra["grid_nz"] = tinygltf::Value(medium->packet.density_nxyz.z);
+        media_extra["aniso_x"] = tinygltf::Value(medium->packet.aniso.x);
+        media_extra["aniso_y"] = tinygltf::Value(medium->packet.aniso.y);
+        media_extra["aniso_z"] = tinygltf::Value(medium->packet.aniso.z);
+      }
+      else if (medium->packet.type == Medium::MediumType::GridMedium) {
+        //media_extra["scale"] = tinygltf::Value(medium->packet.scale);
+        //media_extra["bound_min_x"] = tinygltf::Value(medium->packet.bound_min.x);
+        //media_extra["bound_min_y"] = tinygltf::Value(medium->packet.bound_min.y);
+        //media_extra["bound_min_z"] = tinygltf::Value(medium->packet.bound_min.z);
+        //media_extra["bound_max_x"] = tinygltf::Value(medium->packet.bound_max.x);
+        //media_extra["bound_max_y"] = tinygltf::Value(medium->packet.bound_max.y);
+        //media_extra["bound_max_z"] = tinygltf::Value(medium->packet.bound_max.z);
+        //media_extra["grid_nx"] = tinygltf::Value(medium->packet.density_nxyz.x);
+        //media_extra["grid_ny"] = tinygltf::Value(medium->packet.density_nxyz.y);
+        //media_extra["grid_nz"] = tinygltf::Value(medium->packet.density_nxyz.z);
+        //media_extra["aniso_x"] = tinygltf::Value(medium->packet.aniso.x);
+        //media_extra["aniso_y"] = tinygltf::Value(medium->packet.aniso.y);
+        //media_extra["aniso_z"] = tinygltf::Value(medium->packet.aniso.z);
+
+        //media_extra["o2w"] = tinygltf::Value(tinygltf::Value::Array{
+        //  tinygltf::Value(medium->packet.geometryTransform.matrix[0][0]),
+        //  tinygltf::Value(medium->packet.geometryTransform.matrix[0][1]),
+        //  tinygltf::Value(medium->packet.geometryTransform.matrix[0][2]),
+        //  tinygltf::Value(medium->packet.geometryTransform.matrix[0][3]),
+        //  tinygltf::Value(medium->packet.geometryTransform.matrix[1][0]),
+        //  tinygltf::Value(medium->packet.geometryTransform.matrix[1][1]),
+        //  tinygltf::Value(medium->packet.geometryTransform.matrix[1][2]),
+        //  tinygltf::Value(medium->packet.geometryTransform.matrix[1][3]),
+        //  tinygltf::Value(medium->packet.geometryTransform.matrix[2][0]),
+        //  tinygltf::Value(medium->packet.geometryTransform.matrix[2][1]),
+        //  tinygltf::Value(medium->packet.geometryTransform.matrix[2][2]),
+        //  tinygltf::Value(medium->packet.geometryTransform.matrix[2][3]),
+        //  });
+        //media_extra["w2o"] = tinygltf::Value(tinygltf::Value::Array{
+        //  tinygltf::Value(medium->packet.geometryTransformInverse.matrix[0][0]),
+        //  tinygltf::Value(medium->packet.geometryTransformInverse.matrix[0][1]),
+        //  tinygltf::Value(medium->packet.geometryTransformInverse.matrix[0][2]),
+        //  tinygltf::Value(medium->packet.geometryTransformInverse.matrix[0][3]),
+        //  tinygltf::Value(medium->packet.geometryTransformInverse.matrix[1][0]),
+        //  tinygltf::Value(medium->packet.geometryTransformInverse.matrix[1][1]),
+        //  tinygltf::Value(medium->packet.geometryTransformInverse.matrix[1][2]),
+        //  tinygltf::Value(medium->packet.geometryTransformInverse.matrix[1][3]),
+        //  tinygltf::Value(medium->packet.geometryTransformInverse.matrix[2][0]),
+        //  tinygltf::Value(medium->packet.geometryTransformInverse.matrix[2][1]),
+        //  tinygltf::Value(medium->packet.geometryTransformInverse.matrix[2][2]),
+        //  tinygltf::Value(medium->packet.geometryTransformInverse.matrix[2][3]),
+        //  });
+        ////medium_handle->packet.geometryTransform
+        //int sigma_a_size = int(medium->density->values.size());
+        //auto [sigma_a_tgt, offset] = allocate_buffer(sigma_a_size);
+        //memcpy(sigma_a_tgt, medium->density->values.data(), sizeof(float) * sigma_a_size);
+        //media_extra["sigma_a_size"] = tinygltf::Value(sigma_a_size);
+        //media_extra["sigma_a_offset"] = tinygltf::Value(offset);
+        //int sigma_s_size = int(medium->temperatureGrid->values.size());
+        //auto [sigma_s_tgt, offset_s] = allocate_buffer(sigma_s_size);
+        //memcpy(sigma_s_tgt, medium->temperatureGrid->values.data(), sizeof(float) * sigma_s_size);
+        //media_extra["sigma_s_offset"] = tinygltf::Value(offset_s);
+        //media_extra["sigma_s_size"] = tinygltf::Value(sigma_s_size);
+      }
+      else if (medium->packet.type == Medium::MediumType::RGBGridMedium) {
         media_extra["scale"] = tinygltf::Value(medium->packet.scale);
         media_extra["bound_min_x"] = tinygltf::Value(medium->packet.bound_min.x);
         media_extra["bound_min_y"] = tinygltf::Value(medium->packet.bound_min.y);
@@ -680,7 +751,8 @@ auto Scene::updateGPUScene() noexcept -> void {
 
   // update geometry information
   auto node_mesh_view = registry.view<Transform, MeshRenderer>();
-  if ((dirtyFlags & (uint64_t)DirtyFlagBit::Geometry) != 0) {
+  if (((dirtyFlags & (uint64_t)DirtyFlagBit::Geometry) != 0)
+    || ((dirtyFlags & (uint64_t)DirtyFlagBit::Transform) != 0)) {
     size_t geometry_index = 0;
     for (auto entity : node_mesh_view) {
       auto [transform, mesh_renderer] = node_mesh_view.get<Transform, MeshRenderer>(entity);
@@ -945,7 +1017,8 @@ auto Scene::updateGPUScene() noexcept -> void {
     
   // also update the ray tracing data structures
   gpuScene.tlas.desc = {};
-  if ((dirtyFlags & (uint64_t)DirtyFlagBit::Geometry) != 0) {
+  if (((dirtyFlags & (uint64_t)DirtyFlagBit::Geometry) != 0)
+    || ((dirtyFlags & (uint64_t)DirtyFlagBit::Transform) != 0)) {
     for (auto entity : node_mesh_view) {
       auto [transform, mesh_renderer] = node_mesh_view.get<Transform, MeshRenderer>(entity);
       mesh_renderer.blasInstance.resize(mesh_renderer.mesh->primitives.size());
@@ -954,15 +1027,17 @@ auto Scene::updateGPUScene() noexcept -> void {
       // if there are custom primitive we do not use traingles
       if (mesh_renderer.mesh->custom_primitives.size() > 0) {
         for (auto& primitive : mesh_renderer.mesh->custom_primitives) {
-          primitive.back_blas = std::move(primitive.prim_blas);
-          primitive.blasDesc.allowCompaction = true;
-          primitive.blasDesc.customGeometries.push_back(rhi::BLASCustomGeometry{
-            rhi::AffineTransformMatrix{},
-            std::vector<se::bounds3>{se::bounds3{primitive.min, primitive.max}},
-            (uint32_t)rhi::BLASGeometryFlagBits::NO_DUPLICATE_ANY_HIT_INVOCATION
-            | (uint32_t)rhi::BLASGeometryFlagBits::OPAQUE_GEOMETRY,
-          });
-          primitive.prim_blas = GFXContext::device->createBLAS(primitive.blasDesc);
+          if (((dirtyFlags & (uint64_t)DirtyFlagBit::Geometry) != 0)) {
+            primitive.back_blas = std::move(primitive.prim_blas);
+            primitive.blasDesc.allowCompaction = true;
+            primitive.blasDesc.customGeometries.push_back(rhi::BLASCustomGeometry{
+              rhi::AffineTransformMatrix{},
+              std::vector<se::bounds3>{se::bounds3{primitive.min, primitive.max}},
+              (uint32_t)rhi::BLASGeometryFlagBits::NO_DUPLICATE_ANY_HIT_INVOCATION
+              | (uint32_t)rhi::BLASGeometryFlagBits::OPAQUE_GEOMETRY,
+              });
+            primitive.prim_blas = GFXContext::device->createBLAS(primitive.blasDesc);
+          }
           // update the instance of the mesh resource
           rhi::BLASInstance& instance = mesh_renderer.blasInstance[primitive_index++];
           instance.blas = primitive.prim_blas.get();
@@ -977,21 +1052,23 @@ auto Scene::updateGPUScene() noexcept -> void {
         se::root::print::log("scene :: update gpu-scene :: start create triangle BLAS " + registry.get<NodeProperty>(entity).name);
 
         for (auto& primitive : mesh_renderer.mesh->primitives) {
-          primitive.back_blas = std::move(primitive.prim_blas);
-          primitive.blasDesc.allowCompaction = true;
-          primitive.blasDesc.triangleGeometries.push_back(rhi::BLASTriangleGeometry{
-            gpuScene.position_buffer->buffer.get(),
-            gpuScene.index_buffer->buffer.get(),
-            rhi::IndexFormat::UINT32_T,
-            uint32_t(primitive.numVertex - 1),
-            uint32_t(primitive.baseVertex + mesh_renderer.mesh->vertex_offset / (sizeof(float) * 3)),
-            uint32_t(primitive.size / 3),
-            uint32_t(primitive.offset * sizeof(uint32_t) + mesh_renderer.mesh->index_offset),
-            rhi::AffineTransformMatrix{},
-            (uint32_t)rhi::BLASGeometryFlagBits::NO_DUPLICATE_ANY_HIT_INVOCATION
-            | (uint32_t)rhi::BLASGeometryFlagBits::OPAQUE_GEOMETRY,
-            0 });
-          primitive.prim_blas = GFXContext::device->createBLAS(primitive.blasDesc);
+          if (((dirtyFlags & (uint64_t)DirtyFlagBit::Geometry) != 0)) {
+            primitive.back_blas = std::move(primitive.prim_blas);
+            primitive.blasDesc.allowCompaction = true;
+            primitive.blasDesc.triangleGeometries.push_back(rhi::BLASTriangleGeometry{
+              gpuScene.position_buffer->buffer.get(),
+              gpuScene.index_buffer->buffer.get(),
+              rhi::IndexFormat::UINT32_T,
+              uint32_t(primitive.numVertex - 1),
+              uint32_t(primitive.baseVertex + mesh_renderer.mesh->vertex_offset / (sizeof(float) * 3)),
+              uint32_t(primitive.size / 3),
+              uint32_t(primitive.offset * sizeof(uint32_t) + mesh_renderer.mesh->index_offset),
+              rhi::AffineTransformMatrix{},
+              (uint32_t)rhi::BLASGeometryFlagBits::NO_DUPLICATE_ANY_HIT_INVOCATION
+              | (uint32_t)rhi::BLASGeometryFlagBits::OPAQUE_GEOMETRY,
+              0 });
+            primitive.prim_blas = GFXContext::device->createBLAS(primitive.blasDesc);
+          }
           // update the instance of the mesh resource
           rhi::BLASInstance& instance = mesh_renderer.blasInstance[primitive_index++];
           instance.blas = primitive.prim_blas.get();
@@ -1030,8 +1107,10 @@ auto Scene::updateGPUScene() noexcept -> void {
       }
     }
 
+    gpuScene.tlas.back = std::move(gpuScene.tlas.prim);
+    //gpuScene.tlas.uvprim = std::move(gpuScene.tlas.prim);
     gpuScene.tlas.prim = GFXContext::device->createTLAS(gpuScene.tlas.desc);
-    gpuScene.tlas.uvprim = GFXContext::device->createTLAS(gpuScene.tlas.uvdesc);
+    //gpuScene.tlas.uvprim = GFXContext::device->createTLAS(gpuScene.tlas.uvdesc);
   }
 
   se::root::print::log("scene :: update gpu-scene :: end create accelerate-structures ");
@@ -3540,6 +3619,11 @@ auto loadPbrtDefineddMesh(std::vector<tiny_pbrt_loader::Point3f> p,
   return mesh;
 }
 
+auto createSphereMesh() {
+  MeshHandle mesh = GFXContext::load_mesh_empty();
+  
+}
+
 se::mat4 pbrt_mat_to_semat4x4(tiny_pbrt_loader::TransformData const& pbrt_trans) {
   return se::mat4{
   (float)pbrt_trans.m[0][0],  (float)pbrt_trans.m[0][1], (float)pbrt_trans.m[0][2], (float)pbrt_trans.m[0][3],
@@ -3785,6 +3869,34 @@ SceneLoader::result_type SceneLoader::operator()(SceneLoader::from_pbrt_tag, std
     medium_map[medium.name] = medium_handle;
   }
 
+  auto handle_material_medium = [&material_map, &medium_map](
+    tiny_pbrt_loader::ShapeSceneEntity& shape,
+    MeshRenderer& mesh_renderer
+  ) {
+    if (!material_map[shape.materialIndex].has_value()) {
+
+    }
+    else {
+
+    }
+
+    if (shape.insideMedium != "") {
+      auto& handle = medium_map[shape.insideMedium];
+      for (auto& primitive : mesh_renderer.mesh->primitives)
+        primitive.interior = handle;
+      for (auto& primitive : mesh_renderer.mesh->custom_primitives)
+        primitive.interior = handle;
+    }
+
+    if (shape.outsideMedium != "") {
+      auto& handle = medium_map[shape.outsideMedium];
+      for (auto& primitive : mesh_renderer.mesh->primitives)
+        primitive.exterior = handle;
+      for (auto& primitive : mesh_renderer.mesh->custom_primitives)
+        primitive.exterior = handle;
+    }
+  };
+
   for (auto& shape : scene_pbrt->shapes) {
     std::vector<tiny_pbrt_loader::Point3f> p = shape.dict.GetPoint3fArray("P");
     std::vector<int> idx = shape.dict.GetIntArray("indices");
@@ -3798,29 +3910,25 @@ SceneLoader::result_type SceneLoader::operator()(SceneLoader::from_pbrt_tag, std
     if (idx.size() > 0) {
       MeshRenderer& mesh_renderer = scene->registry.emplace<MeshRenderer>(node.entity);
       mesh_renderer.mesh = loadPbrtDefineddMesh(p, idx, *(scene.get()));
+      handle_material_medium(shape, mesh_renderer);
+    }
+    else if (shape.name == "sphere") {
+      const float radius = shape.dict.GetOneFloat("radius", 1.f);
+      transformComponent.scale *= {radius, radius, radius};
 
-      if (!material_map[shape.materialIndex].has_value()) {
-        
-      }
-      else {
+      std::string engine_path = RuntimeConfig::get()->string_property("engine_path");
+      std::string obj_path = engine_path + "binary/resources/meshes/sphere.obj";
+      MeshHandle mesh = loadObjMesh(obj_path, *scene);
+      Mesh::CustomPrimitive sphere_primitive;
+      sphere_primitive.primitive_type = 1;
+      sphere_primitive.min = -vec3(1.f);
+      sphere_primitive.max = vec3(1.f);
+      mesh->custom_primitives.emplace_back(std::move(sphere_primitive));
 
-      }
+      auto& mesh_renderer = scene->registry.emplace<MeshRenderer>(node.entity);
+      mesh_renderer.mesh = mesh;
 
-      if (shape.insideMedium != "") {
-        auto& handle = medium_map[shape.insideMedium];
-        for (auto& primitive : mesh_renderer.mesh->primitives)
-          primitive.interior = handle;
-        for (auto& primitive : mesh_renderer.mesh->custom_primitives)
-          primitive.interior = handle;
-      }
-
-      if (shape.outsideMedium != "") {
-        auto& handle = medium_map[shape.outsideMedium];
-        for (auto& primitive : mesh_renderer.mesh->primitives)
-          primitive.exterior = handle;
-        for (auto& primitive : mesh_renderer.mesh->custom_primitives)
-          primitive.exterior = handle;
-      }
+      handle_material_medium(shape, mesh_renderer);
     }
   }
 

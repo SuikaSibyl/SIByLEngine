@@ -34,56 +34,76 @@ RWStructuredBuffer<DifferentiableParameter> GPUScene_param_packets;
  * Load the primal value of a differentiable parameter.
  */
 [BackwardDerivative(bwd_load_dparam)]
-float load_dparam(no_diff DifferentiableParameter param, no_diff uint index)
-{ return GPUScene_param_primal[param.offset_primal + index]; }
+float load_dparam(no_diff DifferentiableParameter param, no_diff uint index) {
+    if (index >= param.pitch()) return k_nan;
+    return GPUScene_param_primal[param.offset_primal + index];
+}
 
 void bwd_load_dparam(
     no_diff DifferentiableParameter param,
     no_diff uint index,
-    float.Differential d_output)
-{ GPUScene_param_gradient.InterlockedAddF32((param.offset_gradient + index) * 4, discard_nan_inf(d_output)); }
+    float.Differential d_output
+) {
+    if (index >= param.pitch()) return;
+    d_output = discard_nan_inf(d_output);
+    if (d_output == 0) return;
+    GPUScene_param_gradient.InterlockedAddF32((param.offset_gradient + index) * 4, d_output);
+}
 
 /**
  * Load the primal value of a differentiable parameter.
  * with placeholder for auxiliary data want to splat in bwd pass.
  */
-[BackwardDerivative(bwd_load_dparam_w_aux_float2)]
-float load_dparam_w_aux_float2(
+[BackwardDerivative(bwd_load_dparam_w_aux_float5)]
+float load_dparam_w_aux_float5(
     no_diff DifferentiableParameter param, no_diff uint index,
-    no_diff float2 aux)
-{ return GPUScene_param_primal[param.offset_primal + index]; }
+    no_diff float5 aux
+) {
+    if (index >= param.pitch()) return k_nan;
+    return GPUScene_param_primal[param.offset_primal + index];
+}
 
-void bwd_load_dparam_w_aux_float2(
+void bwd_load_dparam_w_aux_float5(
     no_diff DifferentiableParameter param,
     no_diff uint index,
-    no_diff float2 aux,
+    no_diff float5 aux,
     float.Differential d_output
-) { 
+) {
     // splat the gradient
+    if (index >= param.pitch()) return;
     GPUScene_param_gradient.InterlockedAddF32((param.offset_gradient + index) * 4, discard_nan_inf(d_output));
     // splat the aux data
-    for (int i = 0; i < 1; ++i) {
+    for (int i = 0; i < 5; ++i) {
         Optional<int> offset = param.offset(0, i);
         if (offset.hasValue) {
-            GPUScene_param_gradient.InterlockedAddF32((param.offset_gradient + offset.value + index) * 4, discard_nan_inf(aux[i]));
+            GPUScene_param_gradient.InterlockedAddF32(
+                (param.offset_gradient + offset.value + index) * 4, 
+                discard_nan_inf(aux.data[i]));
         }
     }
 }
 
 float load_dparam_gradient(
     no_diff DifferentiableParameter param,
-    no_diff uint index)
-{ return GPUScene_param_gradient.Load<float>((param.offset_gradient + index) * 4); }
+    no_diff uint index
+) {
+    if (index >= param.pitch()) return k_nan;
+    return GPUScene_param_gradient.Load<float>((param.offset_gradient + index) * 4); 
+}
 
 void set_dparam_gradient(
     no_diff DifferentiableParameter param,
-    no_diff uint index, float value)
-{ GPUScene_param_gradient.Store<float>((param.offset_gradient + index) * 4, value); }
+    no_diff uint index, float value
+) {
+    if (index >= param.pitch()) return;
+    GPUScene_param_gradient.Store<float>((param.offset_gradient + index) * 4, value); 
+}
 
 float load_dparam_aux(
     no_diff DifferentiableParameter param,
-    no_diff uint param_index, no_diff uint aux_idx, float value)
-{
+    no_diff uint param_index, no_diff uint aux_idx, float value
+) {
+    if (param_index >= param.pitch()) return k_nan;
     Optional<int> offset = param.offset(0, aux_idx);
     if (offset.hasValue) {
         return GPUScene_param_gradient.Load<float>((param.offset_gradient + offset.value + param_index) * 4);
@@ -95,6 +115,7 @@ void set_dparam_aux(
     no_diff DifferentiableParameter param,
     no_diff uint param_index, no_diff uint aux_idx, float value)
 {
+    if (param_index >= param.pitch()) return;
     Optional<int> offset = param.offset(0, aux_idx);
     if (offset.hasValue) {
         GPUScene_param_gradient.Store<float>((param.offset_gradient + offset.value + param_index) * 4, value);
@@ -106,6 +127,7 @@ float load_dparam_aux(
     no_diff uint element_idx,
     no_diff uint aux_idx)
 {
+    if (element_idx >= param.pitch()) return k_nan;
     Optional<int> offset = param.offset(0, aux_idx);
     if (offset.hasValue) return GPUScene_param_gradient.Load<float>((param.offset_gradient + offset.value + element_idx) * 4);
     else return 0.f;
@@ -150,12 +172,12 @@ float software_bilinear_interpolation_load(
     return final_val;
 }
 
-[BackwardDerivative(bwd_software_bilinear_interpolation_load_w_aux_float2)]
-float software_bilinear_interpolation_load_w_aux_float2(
+[BackwardDerivative(bwd_software_bilinear_interpolation_load_w_aux_float5)]
+float software_bilinear_interpolation_load_w_aux_float5(
     no_diff float2 texcoord,
     no_diff uint channel,
     no_diff DifferentiableParameter param,
-    no_diff float2 aux)
+    no_diff float5 aux)
 {
     // do some math to get the texel coordinate
     const float2 pixel = texcoord * param.get_texture_dim() + 0.5;
@@ -176,11 +198,11 @@ float software_bilinear_interpolation_load_w_aux_float2(
     return final_val;
 }
 
-void bwd_software_bilinear_interpolation_load_w_aux_float2(
+void bwd_software_bilinear_interpolation_load_w_aux_float5(
     no_diff float2 texcoord,
     no_diff uint channel,
     no_diff DifferentiableParameter param,
-    no_diff float2 aux,
+    no_diff float5 aux,
     float.Differential d_output)
 {
     // do some math to get the texel coordinate
@@ -194,10 +216,10 @@ void bwd_software_bilinear_interpolation_load_w_aux_float2(
     neighbor_weights.y = (1.0 - fract.x) * fract.y;
     neighbor_weights.z = fract.x * (1.0 - fract.y);
     neighbor_weights.w = fract.x * fract.y;
-    bwd_diff(load_dparam_w_aux_float2)(param, param.pixel_to_index(lb_pixel + int2(0, 0), channel), aux * neighbor_weights[0], d_output * neighbor_weights[0]);
-    bwd_diff(load_dparam_w_aux_float2)(param, param.pixel_to_index(lb_pixel + int2(0, 1), channel), aux * neighbor_weights[1], d_output * neighbor_weights[1]);
-    bwd_diff(load_dparam_w_aux_float2)(param, param.pixel_to_index(lb_pixel + int2(1, 0), channel), aux * neighbor_weights[2], d_output * neighbor_weights[2]);
-    bwd_diff(load_dparam_w_aux_float2)(param, param.pixel_to_index(lb_pixel + int2(1, 1), channel), aux * neighbor_weights[3], d_output * neighbor_weights[3]);
+    bwd_diff(load_dparam_w_aux_float5)(param, param.pixel_to_index(lb_pixel + int2(0, 0), channel), aux * neighbor_weights[0], d_output * neighbor_weights[0]);
+    bwd_diff(load_dparam_w_aux_float5)(param, param.pixel_to_index(lb_pixel + int2(0, 1), channel), aux * neighbor_weights[1], d_output * neighbor_weights[1]);
+    bwd_diff(load_dparam_w_aux_float5)(param, param.pixel_to_index(lb_pixel + int2(1, 0), channel), aux * neighbor_weights[2], d_output * neighbor_weights[2]);
+    bwd_diff(load_dparam_w_aux_float5)(param, param.pixel_to_index(lb_pixel + int2(1, 1), channel), aux * neighbor_weights[3], d_output * neighbor_weights[3]);
 }
 
 float software_bilinear_interpolation_load_grad(

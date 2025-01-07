@@ -225,6 +225,7 @@ float2 hemisphere_to_disc_lambert(float3 p) {
  * ✘ conformal
  */
 float3 disc_to_hemisphere_lambert(float2 p) {
+    if(all(p == float2(0, 0))) return float3(0, 0, 1);
     const float r = length(p);
     const float z = 1 - 2 * sqr(r / k_sqrt2);
     const float2 xy = normalize(p) * sqrt(1 - z * z);

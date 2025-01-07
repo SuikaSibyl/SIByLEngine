@@ -56,7 +56,7 @@ const uint64_t kTimeoutInfinite = 0xFFFFFFFFFFFFFFFF;
 
 enum class StructType
 {
-    D3D12DeviceExtendedDesc, D3D12ExperimentalFeaturesDesc
+    D3D12DeviceExtendedDesc, D3D12ExperimentalFeaturesDesc, SlangSessionExtendedDesc, RayTracingValidationDesc
 };
 
 // TODO: Rename to Stage
@@ -89,6 +89,7 @@ enum class DeviceType
     DirectX12,
     OpenGl,
     Vulkan,
+    Metal,
     CPU,
     CUDA,
     CountOf,
@@ -101,6 +102,7 @@ enum class ProjectionStyle
     OpenGl,
     DirectX,
     Vulkan,
+    Metal,
     CountOf,
 };
 
@@ -112,6 +114,7 @@ enum class BindingStyle
     DirectX,
     OpenGl,
     Vulkan,
+    Metal,
     CPU,
     CUDA,
     CountOf,
@@ -296,8 +299,12 @@ public:
     x(BC6H_UF16, 16, 16) \
     x(BC6H_SF16, 16, 16) \
     x(BC7_UNORM, 16, 16) \
-    x(BC7_UNORM_SRGB, 16, 16)
-
+    x(BC7_UNORM_SRGB, 16, 16) \
+    \
+    x(R64_UINT, 8, 1) \
+    \
+    x(R64_SINT, 8, 1) \
+    \
 // TODO: This should be generated from above
 // TODO: enum class should be explicitly uint32_t or whatever's appropriate
 /// Different formats of things like pixels or elements of vertices
@@ -408,6 +415,10 @@ enum class Format
     BC6H_SF16,
     BC7_UNORM,
     BC7_UNORM_SRGB,
+
+    R64_UINT,
+    
+    R64_SINT,
 
     _Count,
 };
@@ -537,6 +548,7 @@ enum class InteropHandleAPI
     FileDescriptor, // A file descriptor.
     DeviceAddress, // A device address.
     D3D12CpuDescriptorHandle, // A D3D12_CPU_DESCRIPTOR_HANDLE value.
+    Metal, // A general Metal object handle.
 };
 
 struct InteropHandle
@@ -647,9 +659,8 @@ struct ClearValue
 
 struct BufferRange
 {
-    // TODO: Change to Index and Count?
-    uint64_t firstElement;
-    uint64_t elementCount;
+    Offset offset;  ///< Offset in bytes.
+    Size size;      ///< Size in bytes.
 };
 
 enum class TextureAspect : uint32_t
@@ -864,8 +875,6 @@ public:
         SubresourceRange subresourceRange;
         // Specifies the range of a buffer resource for a ShaderResource/UnorderedAccess view.
         BufferRange bufferRange;
-        // Specifies the element size in bytes of a structured buffer. Pass 0 for a raw buffer view.
-        Size bufferElementSize;
     };
     virtual SLANG_NO_THROW Desc* SLANG_MCALL getViewDesc() = 0;
 
@@ -1216,7 +1225,7 @@ struct DepthStencilDesc
     DepthStencilOpDesc  frontFace;
     DepthStencilOpDesc  backFace;
 
-    uint32_t stencilRef = 0;
+    uint32_t stencilRef = 0; // TODO: this should be removed
 };
 
 struct RasterizerDesc
@@ -1401,6 +1410,10 @@ public:
         const char** hitGroupNames;
         const ShaderRecordOverwrite* hitGroupRecordOverwrites;
 
+        GfxCount callableShaderCount;
+        const char** callableShaderEntryPointNames;
+        const ShaderRecordOverwrite* callableShaderRecordOverwrites;
+
         IShaderProgram* program;
     };
 };
@@ -1460,7 +1473,7 @@ struct WindowHandle
     {
         Unknown,
         Win32Handle,
-        NSViewHandle,
+        NSWindowHandle,
         XLibHandle,
     };
     Type type;
@@ -1472,11 +1485,11 @@ struct WindowHandle
         handle.handleValues[0] = (intptr_t)(hwnd);
         return handle;
     }
-    static WindowHandle FromNSView(void* nsview)
+    static WindowHandle FromNSWindow(void* nswindow)
     {
         WindowHandle handle = {};
-        handle.type = WindowHandle::Type::NSViewHandle;
-        handle.handleValues[0] = (intptr_t)(nsview);
+        handle.type = WindowHandle::Type::NSWindowHandle;
+        handle.handleValues[0] = (intptr_t)(nswindow);
         return handle;
     }
     static WindowHandle FromXWindow(void* xdisplay, uint32_t xwindow)
@@ -1834,7 +1847,7 @@ public:
     virtual SLANG_NO_THROW void SLANG_MCALL
         deserializeAccelerationStructure(IAccelerationStructure* dest, DeviceAddress source) = 0;
 
-    virtual SLANG_NO_THROW void SLANG_MCALL
+    virtual SLANG_NO_THROW Result SLANG_MCALL
         bindPipeline(IPipelineState* state, IShaderObject** outRootObject) = 0;
     // Sets the current pipeline state along with a pre-created mutable root shader object.
     virtual SLANG_NO_THROW Result SLANG_MCALL
@@ -2215,7 +2228,7 @@ public:
         SlangFloatingPointMode floatingPointMode = SLANG_FLOATING_POINT_MODE_DEFAULT;
         SlangOptimizationLevel optimizationLevel = SLANG_OPTIMIZATION_LEVEL_DEFAULT;
         SlangTargetFlags targetFlags = kDefaultTargetFlags;
-        SlangLineDirectiveMode lineDirectiveMode = SLANG_LINE_DIRECTIVE_MODE_DEFAULT;
+        SlangLineDirectiveMode lineDirectiveMode = SLANG_LINE_DIRECTIVE_MODE_DEFAULT;\
     };
 
     struct ShaderCacheDesc
@@ -2580,6 +2593,18 @@ public:
         const ITextureResource::Desc& desc, Size* outSize, Size* outAlignment) = 0;
 
     virtual SLANG_NO_THROW Result SLANG_MCALL getTextureRowAlignment(Size* outAlignment) = 0;
+
+    virtual SLANG_NO_THROW Result SLANG_MCALL createShaderObject2(
+        slang::ISession* slangSession,
+        slang::TypeReflection* type,
+        ShaderObjectContainerType container,
+        IShaderObject** outObject) = 0;
+
+    virtual SLANG_NO_THROW Result SLANG_MCALL createMutableShaderObject2(
+        slang::ISession* slangSession,
+        slang::TypeReflection* type,
+        ShaderObjectContainerType container,
+        IShaderObject** outObject) = 0;
 };
 
 #define SLANG_UUID_IDevice                                                               \
@@ -2639,6 +2664,10 @@ public:
         0xc3d5f782, 0xeae1, 0x4da6, { 0xab, 0x40, 0x75, 0x32, 0x31, 0x2, 0xb7, 0xdc } \
     }
 
+#define SLANG_UUID_IVulkanPipelineCreationAPIDispatcher                                 \
+    {                                                                                   \
+        0x4fcf1274, 0x8752, 0x4743, { 0xb3, 0x51, 0x47, 0xcb, 0x83, 0x71, 0xef, 0x99 }  \
+    }
 
 // Global public functions
 
@@ -2700,6 +2729,20 @@ struct D3D12DeviceExtendedDesc
     const char* rootParameterShaderAttributeName = nullptr;
     bool debugBreakOnD3D12Error = false;
     uint32_t highestShaderModel = 0;
+};
+
+struct SlangSessionExtendedDesc
+{
+    StructType structType = StructType::SlangSessionExtendedDesc;
+    uint32_t compilerOptionEntryCount = 0;
+    slang::CompilerOptionEntry* compilerOptionEntries = nullptr;
+};
+
+/// Whether to enable ray tracing validation (currently only Vulkan - D3D requires app layer to use NVAPI)
+struct RayTracingValidationDesc
+{
+    StructType structType = StructType::RayTracingValidationDesc;
+    bool enableRaytracingValidation = false;
 };
 
 }

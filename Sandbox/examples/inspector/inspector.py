@@ -17,12 +17,19 @@ import torch
 class EditorApp(EditorApplication):
     def __init__(self):
         super().__init__()
-
+        
     def onInit(self):
         # self.scene = se.gfx.Context.load_scene_pbrt("D:/Art/Scenes/pbrt-v4-volumes/scenes/ground_explosion/ground_explosion.pbrt")
         # self.scene = se.gfx.Context.load_scene_xml("P:/GitProjects/lajolla_public/scenes/volpath_test/vol_cbox.xml")
         # self.scene = se.gfx.Context.load_scene_xml("D:/Art/Scenes/living-room-3-mitsuba/living-room-3/scene_v3.xml")
         # self.scene = se.gfx.Context.load_scene_xml("D:/Art/Scenes/dragon/scene_v3.xml")
+        # self.scene = se.gfx.Context.load_scene_gltf("examples/glt/_data/bunny.gltf")
+        # self.scene = se.gfx.Context.load_scene_gltf("examples/plateau/_data/scene.gltf")
+        # self.scene = se.gfx.Context.load_scene_gltf("examples/glt/_data/sphere.gltf")
+        # self.scene = se.gfx.Context.load_scene_gltf("examples/rglmat/_data/halmet.gltf")
+        # self.scene = se.gfx.Context.load_scene_pbrt("D:/Art/Scenes/teaser/bunny-cloud.pbrt")
+        self.scene = se.gfx.Context.load_scene_gltf("examples/patchgi/_data/bunny.gltf")
+        
         # self.scene = se.gfx.Context.load_scene_xml("D:/Art/Scenes/living-room-mitsuba/scene_v3.xml")
         # self.scene = se.gfx.Context.load_scene_xml("D:/Art/Scenes/living-room-2/scene_v3.xml")
         # self.scene = se.gfx.Context.load_scene_xml("D:/Art/Scenes/kitchen-mitsuba/scene_v3.xml")
@@ -33,7 +40,7 @@ class EditorApp(EditorApplication):
         # self.scene = se.gfx.Context.load_scene_gltf("examples/glt/_data/box.gltf")
         # self.scene = se.gfx.Context.load_scene_xml("D:/Art/Scenes/living-room-3-mitsuba/living-room-3/scene_v3_simple.xml")
         # self.scene = se.gfx.Context.load_scene_gltf("S:/SIByL2024/Sandbox/examples/prb/_data/plane-albedo-diff.gltf")
-        self.scene = se.gfx.Context.load_scene_gltf("examples/glt/_data/sandwich.gltf")
+        # self.scene = se.gfx.Context.load_scene_gltf("examples/glt/_data/sandwich.gltf")
 
         # self.scene = se.gfx.Context.load_scene_xml("D:/Art/Scenes/house/scene_v3.xml")
         print("Scene Loaded Successfully!")
@@ -76,6 +83,7 @@ class EditorApp(EditorApplication):
     def onUpdate(self):
         # update the scene
         self.ctx.device.waitIdle()
+        self.scene.get().updateTransform()
         self.scene.get().updateGPUScene()
     
     def onCommandRecord(self, cmdEncoder: se.rhi.CommandEncoder):

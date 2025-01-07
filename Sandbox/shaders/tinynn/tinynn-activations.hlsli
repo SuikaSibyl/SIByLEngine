@@ -37,6 +37,11 @@ struct Sigmoid : IActivationFn {
     [Differentiable] static float3 eval(float3 xyz) { return float3(eval(xyz.x), eval(xyz.y), eval(xyz.z)); }
 };
 
+struct Logit : IActivationFn {
+    [Differentiable] static float16_t eval(float16_t x) { return log(x / (float16_t(1.0f) - x)); }
+    [Differentiable] static float eval(float x) { return log(x / (1.0f - x)); }
+}
+
 // silu
 struct SiLU : IActivationFn {
     [Differentiable] static float16_t eval(float16_t x) { return x * Sigmoid.eval(x); }
