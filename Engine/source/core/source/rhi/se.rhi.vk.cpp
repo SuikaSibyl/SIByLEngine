@@ -373,6 +373,8 @@ auto setupExtensions(Context_VK* context, ContextExtensions& ext) -> void {
     context->getDeviceExtensions().emplace_back(
       VK_KHR_EXTERNAL_SEMAPHORE_WIN32_EXTENSION_NAME);
   }
+  context->getDeviceExtensions().emplace_back(
+    VK_NV_COMPUTE_SHADER_DERIVATIVES_EXTENSION_NAME);
 }
 
 auto attachWindow(Context_VK* contexVk) noexcept -> void {
@@ -792,6 +794,7 @@ auto Adapter_VK::requestDevice() noexcept -> std::unique_ptr<Device> {
       *pNextChainTail = &shader_fragment_barycentric;
     pNextChainTail = &(shader_fragment_barycentric.pNext);
   }
+
   // 
   if (context->getContextExtensionsFlags() &
       (ContextExtensions)ContextExtensionBit::SAMPLER_FILTER_MIN_MAX) {
@@ -822,6 +825,14 @@ auto Adapter_VK::requestDevice() noexcept -> std::unique_ptr<Device> {
   VkPhysicalDeviceFeatures2 features2{
       VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
   void** pFeature2Tail = &(features2.pNext);
+  // sub: compute derivative
+  VkPhysicalDeviceComputeShaderDerivativesFeaturesNV compute_derivative_physics_features{
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_COMPUTE_SHADER_DERIVATIVES_FEATURES_NV };
+  compute_derivative_physics_features.computeDerivativeGroupLinear = VK_TRUE;
+  compute_derivative_physics_features.computeDerivativeGroupQuads = VK_TRUE;
+  *pFeature2Tail = &compute_derivative_physics_features;
+  pFeature2Tail = &(compute_derivative_physics_features.pNext);
+
   // sub : bindless
   VkPhysicalDeviceDescriptorIndexingFeatures indexing_features{
       VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES_EXT};

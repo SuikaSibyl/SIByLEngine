@@ -240,6 +240,22 @@ auto EXR::fromEXR(std::filesystem::path const& path) noexcept
   return nullptr;
 }
 
+auto Binary::fromBinary(int texWidth, int texHeight, int texChannels, int bits,
+  const char* pixels) noexcept -> std::unique_ptr<Texture> {
+  std::unique_ptr<Texture> image = std::make_unique<Texture>();
+  image->buffer = se::buffer(texWidth * texHeight * sizeof(uint8_t) * 4);
+  memcpy(image->buffer.data, pixels, texWidth * texHeight * sizeof(uint8_t) * 4);
+  image->extend = rhi::Extend3D{ (uint32_t)texWidth, (uint32_t)texHeight, 1 };
+  image->format = rhi::TextureFormat::RGBA8_UNORM_SRGB;
+  image->dimension = rhi::TextureDimension::TEX2D;
+  image->data_size = image->buffer.size;
+  image->mip_levels = 1;
+  image->array_layers = 1;
+  image->subResources.push_back(Texture::SubResource{ 0, 0, 0,
+    uint32_t(image->buffer.size), uint32_t(texWidth), uint32_t(texHeight) });
+  return image;
+}
+
 auto load_image(std::filesystem::path const& path) noexcept -> std::unique_ptr<Texture> {
 if (path.extension() == ".jpg" || path.extension() == ".JPG" ||
     path.extension() == ".JPEG") {

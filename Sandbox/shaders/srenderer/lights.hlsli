@@ -171,6 +171,37 @@ float nee_lbvh_pdf(ilight::sample_li_pdf_in ctx, uint factors) {
     }
 }
 
+float4 nee_lbvh_pdf_with_aux(ilight::sample_li_pdf_in ctx, uint factors) {
+    int nodeIndex = 0;
+    float4 pmf = { 1, 1, 1, 1 };
+    bounds3 allb = fetchAllLightBounds();
+    // Initialize local variables for BVH traversal for PMF computation
+    uint32_t bitTrail = GPUScene_light_trail[ctx.lightID];
+    // Compute light’s PMF by walking down tree nodes to the light
+    while (true) {
+        LightBVHNode node = GPUScene_light_bvh[nodeIndex];
+        if (node.is_leaf()) {
+            LightPacket data = GPUScene_light[ctx.lightID];
+            return pmf * nee_given_light_pdf(ctx, data);
+        }
+        // Compute child importances and update PMF for current node
+        LightBVHNode child0 = GPUScene_light_bvh[nodeIndex + 1];
+        LightBVHNode child1 = GPUScene_light_bvh[node.child_or_light_index()];
+        // float ci[2] = { child0.importance(ctx.ref_point, ctx.ref_normal, allb, factors),
+        //                 child1.importance(ctx.ref_point, ctx.ref_normal, allb, factors) };
+        primal_auxiliary<3> ci[2];
+        ci[0] = child0.importance_with_aux(ctx.ref_point, ctx.ref_normal, allb, factors);
+        ci[1] = child1.importance_with_aux(ctx.ref_point, ctx.ref_normal, allb, factors);
+        ci[0] = max(discard_nan_inf(ci[0]), 0);
+        ci[1] = max(discard_nan_inf(ci[1]), 0);
+        pmf = as_float4(ci[bitTrail & 1]) / (as_float4(ci[0]) + as_float4(ci[1]));
+        
+        // Use bitTrail to find next node index and update its value
+        nodeIndex = bool(bitTrail & 1) ? node.child_or_light_index() : (nodeIndex + 1);
+        bitTrail >>= 1;
+    }
+}
+
 ilight::sample_li_out nee_lbvh(ilight::sample_li_in i, float u, uint factors) {
     int nodeIndex = 0;
     float pmf = 1;

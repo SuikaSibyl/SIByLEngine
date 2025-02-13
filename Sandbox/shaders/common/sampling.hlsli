@@ -14,6 +14,14 @@ float2 uniform_on_disk(float u) {
     return float2(cos_phi, sin_phi);
 }
 
+/** Uniform sample in 2D disk domain */
+float2 uniform_in_disk(float2 u) {
+    float phi = 2.0f * M_PI * u.x;
+    float sin_phi; float cos_phi;
+    sincos(phi, sin_phi, cos_phi);
+    return float2(cos_phi, sin_phi) * sqrt(u.y);
+}
+
 /** Uiform sample on 3D sphere boundary */
 float3 UniformOnSphere(in_ref(float2) u) {
     const float z = 1.0f - 2.0f * u.x;

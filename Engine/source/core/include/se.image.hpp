@@ -59,5 +59,10 @@ struct SIByL_API EXR {
   static auto fromEXR(std::filesystem::path const& path) noexcept -> std::unique_ptr<Texture>;
 };
 
+struct SIByL_API Binary {
+  static auto fromBinary(int width, int height, int channel, int bits,
+    const char* path) noexcept -> std::unique_ptr<Texture>;
+};
+
 auto SIByL_API load_image(std::filesystem::path const& path) noexcept -> std::unique_ptr<Texture>;
 }

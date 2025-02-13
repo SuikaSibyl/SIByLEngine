@@ -243,6 +243,7 @@ struct SIByL_API Texture : public Resource {
   } type = TextureType::vkTexture;
   /** name */
   std::string name;
+  std::string filename;
   /** get name */
   virtual auto getName() const noexcept -> char const*;
   /** Get the UAV of the texture */
@@ -261,6 +262,8 @@ struct SIByL_API Texture : public Resource {
   auto getWidth() noexcept -> uint32_t;
   /** Get the height of the texture */
   auto getHeight() noexcept -> uint32_t;
+  /** Get the binary buffer */
+  auto getBinaryBuffer() noexcept -> std::unique_ptr<se::buffer>;
 private:
   std::unordered_map<ViewIndex, std::unique_ptr<rhi::TextureView>> viewPool;
 };
@@ -276,10 +279,12 @@ struct SIByL_API TextureLoader {
 
   struct from_desc_tag {};
   struct from_file_tag {};
+  struct from_binary_tag {};
   struct from_desc_buf_tag {};
 
   result_type operator()(from_desc_tag, rhi::TextureDescriptor const& desc);
   result_type operator()(from_file_tag, std::filesystem::path const& path);
+  result_type operator()(from_binary_tag, int width, int height, int channel, int bits, const char* data);
   result_type operator()(from_desc_buf_tag, rhi::TextureDescriptor const& desc, float default_value = 0.5,
     int aux_count = 0, int rep_count = 1);
 };
@@ -690,7 +695,7 @@ struct SIByL_API Scene : public Resource {
   };
 
   struct SIByL_API GPUSceneSetting {
-    bool useTexcoordTLAS = true;
+    bool useTexcoordTLAS = false;
   } gpuSceneSetting;
 
   struct SIByL_API GPUScene {
@@ -882,6 +887,10 @@ struct SIByL_API GFXContext {
   static auto create_texture_file(
     std::string const& path
   ) noexcept -> TextureHandle;
+  static auto create_texture_binary(
+    int width, int height, int channel,
+    int bits, const char* data
+  ) noexcept -> TextureHandle;
   static auto create_buf_texture_desc(
     rhi::TextureDescriptor const& desc,
     float default_value,
@@ -940,6 +949,8 @@ struct SIByL_API GFXContext {
   static auto load_scene_xml(std::string const& path) noexcept -> SceneHandle;
   static auto load_scene_pbrt(std::string const& path) noexcept -> SceneHandle;
   static auto create_scene(std::string const& name) noexcept -> SceneHandle;
+
+  static auto add_scene_gltf(std::string const& path, SceneHandle scene) noexcept -> void;
 };
 
 struct SIByL_API PMFDataPack {

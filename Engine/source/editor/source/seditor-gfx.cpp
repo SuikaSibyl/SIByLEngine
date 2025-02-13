@@ -498,7 +498,7 @@ auto drawMaterialEditor(gfx::MaterialHandle material) {
           ImGui::Text("BxDF");
           ImGui::TableNextColumn();
           int bxdf = int(material->bxdf);
-          if (ImGui::Combo("##bxdf", &bxdf, "lambertian\0conductor\0plastic")) {
+          if (ImGui::Combo("##bxdf", &bxdf, "lambertian\0conductor\0plastic\0oren-naar\0mixture\0refract\0dielectric\0")) {
             material->isDirty = true;
             material->bxdf = uint32_t(bxdf);
             if (scene.get()) scene->dirtyFlags |= (uint32_t)gfx::Scene::DirtyFlagBit::Material;
@@ -546,13 +546,14 @@ auto drawMaterialEditor(gfx::MaterialHandle material) {
           ImGui::TableNextColumn();
           ImGui::Text("VecParam-3");
           ImGui::TableNextColumn();
-          float vecparam[3] = {
+          float vecparam[4] = {
             material->floatvec_2.r,
             material->floatvec_2.g,
-            material->floatvec_2.b, };
+            material->floatvec_2.b,
+            material->floatvec_2.a, };
           if (ImGui::DragFloat4("##floatvec_2", vecparam, 0.05, 0)) {
             material->isDirty = true;
-            material->floatvec_2 = { vecparam[0], vecparam[1], vecparam[2] };
+            material->floatvec_2 = { vecparam[0], vecparam[1], vecparam[2], vecparam[3] };
             if (scene.get()) scene->dirtyFlags |= (uint32_t)gfx::Scene::DirtyFlagBit::Material;
           }
         }
@@ -595,6 +596,18 @@ auto drawMediumEditor(gfx::MediumHandle medium) {
     ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthFixed);
     ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
 
+    { // type
+      ImGui::TableNextRow();
+      ImGui::TableNextColumn();
+      ImGui::Text("Type");
+      ImGui::TableNextColumn();
+      int type = int(medium->packet.type);
+      if (ImGui::Combo("##type", &type, "Homogeneous\0GridMedium\0RGBGridMedium\0")) {
+        medium->isDirty = true;
+        medium->packet.type = gfx::Medium::MediumType(type);
+        if (scene.get()) scene->dirtyFlags |= (uint32_t)gfx::Scene::DirtyFlagBit::Medium;
+      }
+    }
     { // sigma_a
       ImGui::TableNextRow();
       ImGui::TableNextColumn();
@@ -671,7 +684,7 @@ void drawNodeInspector(gfx::Node& node) {
             component->translation.r,
             component->translation.g,
             component->translation.b, };
-          if (ImGui::DragFloat3("##Trans", translation, 0.05, 0, 1)) {
+          if (ImGui::DragFloat3("##Trans", translation, 0.05, -100, 100)) {
             //material->isDirty = true;
             component->translation = { translation[0], translation[1], translation[2] };
             if (scene.get()) scene->dirtyFlags |= (uint32_t)gfx::Scene::DirtyFlagBit::Transform;
@@ -686,9 +699,56 @@ void drawNodeInspector(gfx::Node& node) {
             component->scale.r,
             component->scale.g,
             component->scale.b, };
-          if (ImGui::DragFloat3("##Scale", scale, 0.05, 0, 1)) {
+          if (ImGui::DragFloat3("##Scale", scale, 0.05, 0, 10)) {
             //material->isDirty = true;
             component->scale = { scale[0], scale[1], scale[2] };
+            if (scene.get()) scene->dirtyFlags |= (uint32_t)gfx::Scene::DirtyFlagBit::Transform;
+          }
+        }
+        { // rotation
+          ImGui::TableNextRow();
+          ImGui::TableNextColumn();
+          ImGui::Text("Rotation");
+          ImGui::TableNextColumn();
+
+          auto quat2euler = [](se::Quaternion q) -> se::vec3 {
+            se::vec3 angles;
+            // roll (x-axis rotation)
+            double sinr_cosp = 2 * (q.w * q.x + q.y * q.z);
+            double cosr_cosp = 1 - 2 * (q.x * q.x + q.y * q.y);
+            angles.x = std::atan2(sinr_cosp, cosr_cosp);
+            // pitch (y-axis rotation)
+            double sinp = std::sqrt(1 + 2 * (q.w * q.y - q.x * q.z));
+            double cosp = std::sqrt(1 - 2 * (q.w * q.y - q.x * q.z));
+            angles.y = 2 * std::atan2(sinp, cosp) - k_pi / 2;
+            // yaw (z-axis rotation)
+            double siny_cosp = 2 * (q.w * q.z + q.x * q.y);
+            double cosy_cosp = 1 - 2 * (q.y * q.y + q.z * q.z);
+            angles.z = std::atan2(siny_cosp, cosy_cosp);
+            return angles;
+          };
+
+          auto euler2quaternion = [](double roll, double pitch, double yaw) -> se::Quaternion {
+            // Abbreviations for the various angular functions
+            double cr = std::cos(roll * 0.5);
+            double sr = std::sin(roll * 0.5);
+            double cp = std::cos(pitch * 0.5);
+            double sp = std::sin(pitch * 0.5);
+            double cy = std::cos(yaw * 0.5);
+            double sy = std::sin(yaw * 0.5);
+
+            Quaternion q;
+            q.w = cr * cp * cy + sr * sp * sy;
+            q.x = sr * cp * cy - cr * sp * sy;
+            q.y = cr * sp * cy + sr * cp * sy;
+            q.z = cr * cp * sy - sr * sp * cy;
+            return q;
+          };
+
+          se::vec3 rotation = quat2euler(component->rotation);
+          if (ImGui::DragFloat3("##Rotation", rotation, 0.05, -10, 10)) {
+            //material->isDirty = true;
+            component->rotation = euler2quaternion(rotation.x, rotation.y, rotation.z);
             if (scene.get()) scene->dirtyFlags |= (uint32_t)gfx::Scene::DirtyFlagBit::Transform;
           }
         }
@@ -759,6 +819,13 @@ void drawNodeInspector(gfx::Node& node) {
             bool opened = ImGui::TreeNode(("custom primitive - " + std::to_string(i)).c_str());
             if (opened) {
               auto& primitive = component->mesh->custom_primitives[i];
+              // primitive type
+              int primitive_type = primitive.primitive_type;
+              if (ImGui::Combo("##type", &primitive_type, "trimesh\0sphere\0rectangle")) {
+                isDirty = true;
+              }
+
+              // primitive material
               if (primitive.material.get()) {
                 ImGui::Text("Material:");
                 drawMaterialEditor(primitive.material);
@@ -800,6 +867,20 @@ void drawNodeInspector(gfx::Node& node) {
           ImGui::PopID();
         }
         ImGui::TreePop();
+      }
+    });
+  }
+
+
+  gfx::Light* lightComp = node.getComponent<gfx::Light>();
+  if (lightComp) {
+    drawComponent<gfx::Light>(node, "Light Component", [](gfx::Light* component) {
+      bool isDirty = false;
+      // light type
+      int light_type = int(component->type);
+      if (ImGui::Combo("##type", &light_type, "directional\0point\0spot\0sphere\0rectangle\0mesh\0env\0vpl")) {
+        component->type = gfx::Light::LightType(light_type);
+        isDirty = true;
       }
     });
   }

@@ -39,10 +39,10 @@ struct LambertianBRDF : IBxDF {
     static float3 eval(no_diff ibsdf::eval_in i, LambertMaterial material) {
         Frame frame = i.shading_frame;
         // Lambertian BRDF
-        return max(dot(frame.n, i.wo), 0.f) *
+        return abs(dot(frame.n, i.wo)) *
                material.R * k_inv_pi;
     }
-
+    
     static void backward_grad(
         ibsdf::bwd_in i, float3 dL,
         MaterialData mat,
@@ -75,7 +75,7 @@ struct LambertianBRDF : IBxDF {
     // Evaluate the PDF of the BSDF sampling
     static float pdf(ibsdf::pdf_in i, LambertMaterial material) {
         Frame frame = i.shading_frame;
-        return max(dot(frame.n, i.wo), float(0)) * k_inv_pi;
+        return abs(dot(frame.n, i.wo)) * k_inv_pi;
     }
 }
 

@@ -15,6 +15,7 @@ static const float k_nan        = 0.0f / 0.0f;
 
 static const float k_numeric_limits_float_min = 1.0f / exp2(126);
 static const float k_numeric_limits_float_max = 3.402823466e+38;
+static const int   k_numeric_limits_int_max = 2147483647;
 
 static const float k_one_minus_epsilon = 0.999999940395355225f;
 static const float k_float_epsilon = 1.192092896e-07f;

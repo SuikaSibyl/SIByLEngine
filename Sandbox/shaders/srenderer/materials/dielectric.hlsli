@@ -2,10 +2,21 @@
 #define _SRENDERER_DIELECTRIC_BRDF_
 
 #include "bxdf.hlsli"
+#include "srenderer/scene-binding.hlsli"
+#include "srenderer/spt.hlsli"
 
 struct DielectricMaterial : IBxDFParameter {
     float eta; // IoR
     float alpha;
+
+    __init() {
+        alpha = 0.1f;
+        eta = 1.5f;
+    }
+    __init(MaterialData data, float2 uv) {
+        alpha = data.floatvec_0.w;
+        eta = data.floatvec_2.w;
+    }
 };
 
 struct DielectricBRDF : IBxDF {
@@ -13,23 +24,57 @@ struct DielectricBRDF : IBxDF {
 
     // Evaluate the BSDF
     static float3 eval(ibsdf::eval_in i, DielectricMaterial material) {
-        if (dot(i.geometric_normal, i.wi) < 0 ||
-            dot(i.geometric_normal, i.wo) < 0) {
-            // No light below the surface
-            return float3(0);
+        if (material.eta == 1 || IsotropicTrowbridgeReitzDistribution::effectively_smooth(material.alpha))
+            return float3(0.f, 0.f, 0.f);
+        
+        const float3 wi = i.shading_frame.to_local(i.wi);
+        const float3 wo = i.shading_frame.to_local(i.wo);
+        
+        // Evaluate rough dielectric BSDF
+        // Compute generalized half vector _wm_
+        float cosTheta_o = theta_phi_coord::CosTheta(wo);
+        float cosTheta_i = theta_phi_coord::CosTheta(wi);
+        bool reflect = cosTheta_i * cosTheta_o > 0;
+        float etap = 1;
+        if (!reflect) etap = cosTheta_o > 0 ? material.eta : (1 / material.eta);
+
+        float3 wm = wi * etap + wo;
+        if (cosTheta_i == 0 || cosTheta_o == 0 || length_squared(wm) == 0)
+            return float3(0.f, 0.f, 0.f);
+        wm = FaceForward(normalize(wm), float3(0, 0, 1));
+
+        // Discard backfacing microfacets
+        if (dot(wm, wi) * cosTheta_i < 0 || dot(wm, wo) * cosTheta_o < 0)
+            return float3(0.f, 0.f, 0.f);
+
+        IsotropicTrowbridgeReitzParameter params;
+        params.alpha = material.alpha;
+        float F = FresnelDielectric(dot(wo, wm), material.eta);
+        if (reflect) {
+            // Compute reflection at rough dielectric interface
+            return float3(IsotropicTrowbridgeReitzDistribution::D(wm, params) *
+                          IsotropicTrowbridgeReitzDistribution::G(wo, wi, params) * F /
+                        abs(4 * cosTheta_i * cosTheta_o));
+        } else {
+            // Compute transmission at rough dielectric interface
+            float denom = sqr(dot(wi, wm) + dot(wo, wm) / etap) * cosTheta_i * cosTheta_o;
+            float ft = IsotropicTrowbridgeReitzDistribution::D(wm, params) * (1 - F) *
+                       IsotropicTrowbridgeReitzDistribution::G(wo, wi, params) *
+                       abs(dot(wi, wm) * dot(wo, wm) / denom);
+            return ft;
         }
-        Frame frame = i.shading_frame;
-        // Lambertian BRDF
-        return 0.f;
     }
+
+    static float3 FaceForward(float3 v, float3 n2) { return (dot(v, n2) < 0.f) ? -v : v; }
+
     // importance sample the BSDF
     static ibsdf::sample_out sample(ibsdf::sample_in i, DielectricMaterial material) {
         ibsdf::sample_out o;
-        o.bsdf = float3(0);
-        o.wo = float3(0);
+        o.bsdf = float3(0, 0, 0);
+        o.wo = float3(0, 0, 0);
         o.pdf = 0;
 
-        if (IsotropicTrowbridgeReitzDistribution::effectively_smooth(material.alpha)) {
+        if (material.eta == 1 || IsotropicTrowbridgeReitzDistribution::effectively_smooth(material.alpha)) {
             const Frame frame = i.shading_frame;
             const float3 wi = i.shading_frame.to_local(i.wi);
             // Sample perfect specular dielectric BSDF
@@ -114,18 +159,59 @@ struct DielectricBRDF : IBxDF {
         }
         return o;
     }
-    // Evaluate the PDF of the BSDF sampling
-    float pdf(ibsdf::pdf_in i) {
-        if (dot(i.geometric_normal, i.wi) < 0 ||
-            dot(i.geometric_normal, i.wo) < 0) {
-            // No light below the surface
-            return float(0);
-        }
-        // Flip the shading frame if it is
-        // inconsistent with the geometry normal.
-        Frame frame = i.shading_frame;
 
-        return 0.f;
+    // Evaluate the PDF of the BSDF sampling
+    static float pdf(ibsdf::pdf_in i, DielectricMaterial material) {
+        if (material.eta == 1 || IsotropicTrowbridgeReitzDistribution::effectively_smooth(material.alpha))
+            return 0.f;
+
+        const float3 wi = i.shading_frame.to_local(i.wi);
+        const float3 wo = i.shading_frame.to_local(i.wo);
+
+        // Evaluate rough dielectric BSDF
+        // Compute generalized half vector _wm_
+        float cosTheta_o = theta_phi_coord::CosTheta(wo);
+        float cosTheta_i = theta_phi_coord::CosTheta(wi);
+        bool reflect = cosTheta_i * cosTheta_o > 0;
+        float etap = 1;
+        if (!reflect) etap = cosTheta_o > 0 ? material.eta : (1 / material.eta);
+
+        float3 wm = wi * etap + wo;
+        if (cosTheta_i == 0 || cosTheta_o == 0 || length_squared(wm) == 0)
+            return 0.f;
+        wm = FaceForward(normalize(wm), float3(0, 0, 1));
+
+        // Discard backfacing microfacets
+        if (dot(wm, wi) * cosTheta_i < 0 || dot(wm, wo) * cosTheta_o < 0)
+            return 0.f;
+
+        IsotropicTrowbridgeReitzParameter params;
+        params.alpha = material.alpha;
+        // Determine Fresnel reflectance of rough dielectric boundary
+        float R = FresnelDielectric(dot(wo, wm), material.eta);
+        float T = 1 - R;
+
+        // Compute probabilities _pr_ and _pt_ for sampling reflection and transmission
+        float pr = R; float pt = T;
+        // if (!(sampleFlags & BxDFReflTransFlags::Reflection))
+        //     pr = 0;
+        // if (!(sampleFlags & BxDFReflTransFlags::Transmission))
+        //     pt = 0;
+        // if (pr == 0 && pt == 0)
+        //     return {};
+
+        // Return PDF for rough dielectric
+        float pdf;
+        if (reflect) {
+            // Compute PDF of rough dielectric reflection
+            pdf = IsotropicTrowbridgeReitzDistribution::pdf_vnormal(wo, wm, params) / (4 * abs(dot(wo, wm))) * pr / (pr + pt);
+        } else {
+            // Compute PDF of rough dielectric transmission
+            float denom = sqr(dot(wi, wm) + dot(wo, wm) / etap);
+            float dwm_dwi = abs(dot(wi, wm)) / denom;
+            pdf = IsotropicTrowbridgeReitzDistribution::pdf_vnormal(wo, wm, params) * dwm_dwi * pt / (pr + pt);
+        }
+        return pdf;
     }
 }
 

@@ -103,7 +103,7 @@ struct Rectangle {
         if (abs(local.x) <= 1.f && abs(local.y) <= 1.f) return t;
         return -1.f;
     }
-
+    
     static ishape::sample sample(ishape::sample_in i, RectangleParameter param) {
         float3 local_position = float3(i.uv * 2 - 1, 0);
         float3 world_position = mul(float4(local_position, 1.0), param.o2w).xyz;

@@ -19,12 +19,18 @@ struct MixtureMaterial : IBxDFParameter {
             mat.ext1_tex, uv,
             mat.is_ext1_tex_differentiable()).xyz;
         R = mat.floatvec_0.xyz * SampleTexture2D(mat.albedo_tex, uv,
-            mat.is_albedo_tex_differentiable()) .rgb;
-
+            mat.is_albedo_tex_differentiable()) .rgb * 1.5; //  * 3
+        // R = float3(1, 1, 1);
+        // weight = 0.4;
+        // sigma = 1.0;
+        // alpha = 0.02;
+        // weight = 0.4;
+        // sigma = 0.4;
+        // alpha = 0.4;
         weight = mat.floatvec_0.w * ext_tex.x;
         sigma = ext_tex.y;
         alpha = ext_tex.z;
-        eta = 2.0f;
+        eta = 2.5f;
     }
     
     [BackwardDifferentiable]
@@ -35,11 +41,14 @@ struct MixtureMaterial : IBxDFParameter {
         
         MixtureMaterial material = no_diff MixtureMaterial();
         material.R = data.floatvec_0.xyz * SampleTexture2D(data.albedo_tex, uv,
-            data.is_albedo_tex_differentiable()) .rgb;
+            data.is_albedo_tex_differentiable()).rgb * 1.5;
         material.weight = data.floatvec_0.w * ext_tex.x;
         material.sigma = ext_tex.y;
         material.alpha = ext_tex.z;
-        material.eta = 2.0f;
+        // material.weight = 0.1f;
+        // material.sigma = 0.1f;
+        // material.alpha = 0.1;
+        material.eta = 2.5f;
         return material;
     }
 
@@ -257,9 +266,9 @@ struct MixtureBRDF : IBxDF {
         bwd_diff(eval_spec_lobe)(i.eval, material_pair, dL);
         weight_aux.data[1] = material_pair.d.weight;
         // weight aux 2: the PDF of sampling the first term
-        weight_aux.data[2] = pdf_alpha_derivative_diffuse(pi) / i.pdf;
+        weight_aux.data[2] = pdf_alpha_derivative_diffuse(pi) / i.pdf * 0.99 + 0.01;
         // weight aux 3: the PDF of sampling the second term
-        weight_aux.data[3] = pdf_alpha_derivative_spec(pi, material) / i.pdf;
+        weight_aux.data[3] = pdf_alpha_derivative_spec(pi, material) / i.pdf * 0.99 + 0.01;
         // weight aux 4: estimate the actual H
         weight_aux.data[4] = 1;
 
@@ -273,9 +282,9 @@ struct MixtureBRDF : IBxDF {
         bwd_diff(eval_diffuse_lobe_2nd)(i.eval, material_pair, dL);
         sigma_aux.data[1] = material_pair.d.sigma;
         // sigma aux 2: the PDF of sampling the first term
-        sigma_aux.data[2] = OrenNayarBRDF::pdf_term1(pi) / i.pdf;
+        sigma_aux.data[2] = OrenNayarBRDF::pdf_term1(pi) / i.pdf * 0.99 + 0.01;
         // sigma aux 3: the PDF of sampling the second term
-        sigma_aux.data[3] = OrenNayarBRDF::pdf_term2(pi) / i.pdf;
+        sigma_aux.data[3] = OrenNayarBRDF::pdf_term2(pi) / i.pdf * 0.99 + 0.01;
         // sigma aux 4: estimate the actual H
         sigma_aux.data[4] = 1;
         
@@ -286,9 +295,9 @@ struct MixtureBRDF : IBxDF {
         // sigma aux 1: the gradient of the second term
         alpha_aux.data[1] = (min(dd_dg_dalpha.x, 0)) * average(dL);
         // sigma aux 2: the PDF of sampling the first term
-        alpha_aux.data[2] = pdf_ggx_alpha_derivative_pos(pi, material) / i.pdf;
+        alpha_aux.data[2] = pdf_ggx_alpha_derivative_pos(pi, material) / i.pdf * 0.99 + 0.01;
         // sigma aux 3: the PDF of sampling the second term
-        alpha_aux.data[3] = pdf_ggx_alpha_derivative_neg(pi, material) / i.pdf;
+        alpha_aux.data[3] = pdf_ggx_alpha_derivative_neg(pi, material) / i.pdf * 0.99 + 0.01;
         // sigma aux 4: estimate the actual H
         alpha_aux.data[4] = 1;
         
@@ -608,7 +617,7 @@ struct MixtureBRDF : IBxDF {
         return microfacet_reflection::pdf_pos<
             IsotropicTrowbridgeReitzDerivative>(i, ggx_param) / (4 * abs(dot(i.wh, i.wi)));
     }
-
+    
     /** The pdf of postivized derivative sampling, negative part */
     static float pdf_ggx_alpha_derivative_neg(const ibsdf::pdf_in i, MixtureMaterial material) {
         IsotropicTrowbridgeReitzParameter ggx_param;

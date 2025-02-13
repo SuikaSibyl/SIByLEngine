@@ -7,7 +7,9 @@
 #include "materials/orennayar.hlsli"
 #include "materials/mixture.hlsli"
 #include "materials/refract.hlsli"
+#include "materials/chromafiction.hlsli"
 #include "materials/rglbrdf.hlsli"
+#include "materials/dielectric.hlsli"
 
 /**
  * "materials" namespace contains unified interface to evaluate and sample BSDFs.
@@ -33,6 +35,8 @@ float3 bsdf_eval(ibsdf::eval_in i, MaterialData material, float2 uv) {
     case 3: return OrenNayarBRDF::eval(i, OrenNayarMaterial(material, uv));
     case 4: return MixtureBRDF::eval(i, MixtureMaterial(material, uv));
     case 5: return RefractBRDF::eval(i, RefractMaterial(material, uv));
+    case 6: return DielectricBRDF::eval(i, DielectricMaterial(material, uv));
+    case 9: return ChromaFictionBRDF::eval(i, ChromaFictionMaterial(material, uv));
     }
     return float3(0, 0, 0);
 }
@@ -44,7 +48,7 @@ float3 bsdf_eval(ibsdf::eval_in i, MaterialData material, float2 uv) {
  * @param uv: texture coordinate
  */
 ibsdf::sample_out bsdf_sample(ibsdf::sample_in i, MaterialData material, float2 uv) {
-    ibsdf::sample_out o;
+    ibsdf::sample_out o = {};
     switch (material.bxdf_type) {
     case 0: return LambertianBRDF::sample(i, LambertMaterial(material, uv));
     case 1: return ConductorBRDF::sample(i, ConductorMaterial(material, uv));
@@ -52,6 +56,8 @@ ibsdf::sample_out bsdf_sample(ibsdf::sample_in i, MaterialData material, float2 
     case 3: return OrenNayarBRDF::sample(i, OrenNayarMaterial(material, uv));
     case 4: return MixtureBRDF::sample(i, MixtureMaterial(material, uv));
     case 5: return RefractBRDF::sample(i, RefractMaterial(material, uv));
+    case 6: return DielectricBRDF::sample(i, DielectricMaterial(material, uv));
+    case 9: return ChromaFictionBRDF::sample(i, ChromaFictionMaterial(material, uv));
     }
     return o;
 }
@@ -65,7 +71,7 @@ ibsdf::sample_out bsdf_sample(ibsdf::sample_in i, MaterialData material, float2 
 ibsdf::sample_out bsdf_sample_with_perchannel_cv(
     ibsdf::sample_in i, MaterialData material, float2 uv, out float3 cv) {
     cv = float3(1, 1, 1);
-    ibsdf::sample_out o;
+    ibsdf::sample_out o = {};
     switch (material.bxdf_type) {
     case 0: return LambertianBRDF::sample(i, LambertMaterial(material, uv));
     case 1: return ConductorBRDF::sample(i, ConductorMaterial(material, uv));
@@ -73,6 +79,19 @@ ibsdf::sample_out bsdf_sample_with_perchannel_cv(
     case 3: return OrenNayarBRDF::sample(i, OrenNayarMaterial(material, uv));
     case 4: return MixtureBRDF::sample(i, MixtureMaterial(material, uv));
     case 5: return RefractBRDF::sample(i, RefractMaterial(material, uv));
+    case 6: return DielectricBRDF::sample(i, DielectricMaterial(material, uv));
+    case 9: {
+        ChromaFictionMaterial mat = ChromaFictionMaterial(material, uv);
+        ibsdf::sample_out sample_o = ChromaFictionBRDF::sample(i, mat);
+        ibsdf::pdf_in pdf_in;
+        pdf_in.wi = i.wi;
+        pdf_in.wo = sample_o.wo;
+        pdf_in.geometric_normal = i.geometric_normal;
+        pdf_in.shading_frame = i.shading_frame;
+        pdf_in.wh = sample_o.wh;
+        cv = ChromaFictionBRDF::perchannel_pdf(pdf_in, mat);
+        return sample_o;
+    }
     case 10: {
         RGLMaterial material = RGLMaterial(0);
         ibsdf::sample_out sample_o = RGLBRDF::sample_with_perchannel_cv(i, material, cv);
@@ -90,7 +109,7 @@ ibsdf::sample_out bsdf_sample_with_perchannel_cv(
  * @param uv: texture coordinate
  */
 ibsdf::sample_out bsdf_sample_safe(ibsdf::sample_in i, MaterialData material, float2 uv) {
-    ibsdf::sample_out o;
+    ibsdf::sample_out o = {};
     switch (material.bxdf_type) {
     case 0: return LambertianBRDF::sample(i, LambertMaterial(material, uv));
     case 1: return ConductorBRDF::sample(i, ConductorMaterial(material, uv));
@@ -98,6 +117,7 @@ ibsdf::sample_out bsdf_sample_safe(ibsdf::sample_in i, MaterialData material, fl
     case 3: return OrenNayarBRDF::sample(i, OrenNayarMaterial(material, uv));
     case 4: return MixtureBRDF::sample_safe(i, MixtureMaterial(material, uv));
     case 5: return RefractBRDF::sample(i, RefractMaterial(material, uv));
+    case 6: return DielectricBRDF::sample(i, DielectricMaterial(material, uv));
     }
     return o;
 }
@@ -109,7 +129,7 @@ ibsdf::sample_out bsdf_sample_safe(ibsdf::sample_in i, MaterialData material, fl
  * @param uv: texture coordinate
  */
 float bsdf_sample_pdf(ibsdf::pdf_in i, MaterialData material, float2 uv) {
-    ibsdf::sample_out o;
+    ibsdf::sample_out o = {};
     switch (material.bxdf_type) {
     case 0: return LambertianBRDF::pdf(i, LambertMaterial(material, uv));
     case 1: return ConductorBRDF::pdf(i, ConductorMaterial(material, uv));
@@ -117,6 +137,8 @@ float bsdf_sample_pdf(ibsdf::pdf_in i, MaterialData material, float2 uv) {
     case 3: return OrenNayarBRDF::pdf(i, OrenNayarMaterial(material, uv));
     case 4: return MixtureBRDF::pdf(i, MixtureMaterial(material, uv));
     case 5: return RefractBRDF::pdf(i, RefractMaterial(material, uv));
+    case 6: return DielectricBRDF::pdf(i, DielectricMaterial(material, uv));
+    case 9: return ChromaFictionBRDF::pdf(i, ChromaFictionMaterial(material, uv));
     }
     return 0.f;
 }
@@ -129,7 +151,7 @@ float bsdf_sample_pdf(ibsdf::pdf_in i, MaterialData material, float2 uv) {
  * @param uv: texture coordinate
  */
 void bsdf_backward_grad(ibsdf::bwd_in i, float3 dL, MaterialData material, float2 uv) {
-    ibsdf::sample_out o;
+    ibsdf::sample_out o = {};
     switch (material.bxdf_type) {
     case 0: LambertianBRDF::backward_grad(i, dL, material, uv); break;
     case 1: ConductorBRDF::backward_grad(i, dL, material, uv); break;
@@ -147,7 +169,7 @@ void bsdf_backward_grad(ibsdf::bwd_in i, float3 dL, MaterialData material, float
  */
 void bsdf_backward_grad_ratio(
     ibsdf::bwd_in i, float3 dL, MaterialData material, float2 uv) {
-    ibsdf::sample_out o;
+    ibsdf::sample_out o = {};
     switch (material.bxdf_type) {
     // case 0: LambertianBRDF::backward_grad(i, dL, material, uv); break;
     // case 1: ConductorBRDF::backward_grad(i, dL, material, uv); break;
@@ -222,7 +244,7 @@ namespace brdfd_techniques {
     * @param uv: texture coordinate
     */
     void bsdf_backward_grad_1st(ibsdf::bwd_in i, float3 dL, MaterialData material, float2 uv) {
-        ibsdf::sample_out o;
+        ibsdf::sample_out o = {};
         switch (material.bxdf_type) {
         case 1: ConductorBRDF::backward_alpha_derivative_pos(i, dL, material, uv); break;
         case 3: OrenNayarBRDF::backward_sigma_derivative_diffuse(i, dL, material, uv); break;
@@ -238,7 +260,7 @@ namespace brdfd_techniques {
      * @param uv: texture coordinate
      */
     void bsdf_backward_grad_2nd(ibsdf::bwd_in i, float3 dL, MaterialData material, float2 uv) {
-        ibsdf::sample_out o;
+        ibsdf::sample_out o = {};
         switch (material.bxdf_type) {
         case 1: ConductorBRDF::backward_alpha_derivative_neg(i, dL, material, uv); break;
         case 3: OrenNayarBRDF::backward_sigma_derivative_spec(i, dL, material, uv); break;
@@ -254,28 +276,28 @@ namespace brdfd_techniques {
      * @param uv: texture coordinate
      */
     void bsdf_backward_grad_3rd(ibsdf::bwd_in i, float3 dL, MaterialData material, float2 uv) {
-        ibsdf::sample_out o;
+        ibsdf::sample_out o = {};
         switch (material.bxdf_type) {
         case 4: MixtureBRDF::backward_sigma_derivative_lambert(i, dL, material, uv); break;
         }
     }
 
     void bsdf_backward_grad_4th(ibsdf::bwd_in i, float3 dL, MaterialData material, float2 uv) {
-        ibsdf::sample_out o;
+        ibsdf::sample_out o = {};
         switch (material.bxdf_type) {
         case 4: MixtureBRDF::backward_sigma_derivative_nonlambert(i, dL, material, uv); break;
         }
     }
 
     void bsdf_backward_grad_5th(ibsdf::bwd_in i, float3 dL, MaterialData material, float2 uv) {
-        ibsdf::sample_out o;
+        ibsdf::sample_out o = {};
         switch (material.bxdf_type) {
         case 4: MixtureBRDF::backward_ggx_alpha_derivative_pos(i, dL, material, uv); break;
         }
     }
-    
+
     void bsdf_backward_grad_6th(ibsdf::bwd_in i, float3 dL, MaterialData material, float2 uv) {
-        ibsdf::sample_out o;
+        ibsdf::sample_out o = {};
         switch (material.bxdf_type) {
         case 4: MixtureBRDF::backward_ggx_alpha_derivative_neg(i, dL, material, uv); break;
         }
@@ -306,7 +328,7 @@ namespace brdfd_techniques {
      * @param uv: texture coordinate
      */
     ibsdf::sample_out bsdf_sample_d_2nd(ibsdf::sample_in i, MaterialData material, float2 uv) {
-        ibsdf::sample_out o;
+        ibsdf::sample_out o = {};
         switch (material.bxdf_type) {
         case 0: return LambertianBRDF::sample(i, LambertMaterial(material, uv));
         case 1: return ConductorBRDF::sample_alpha_derivative_neg(i, ConductorMaterial(material, uv));
@@ -323,7 +345,7 @@ namespace brdfd_techniques {
      * @param uv: texture coordinate
      */
     ibsdf::sample_out bsdf_sample_d_3rd(ibsdf::sample_in i, MaterialData material, float2 uv) {
-        ibsdf::sample_out o;
+        ibsdf::sample_out o = {};
         switch (material.bxdf_type) {
         case 4: return MixtureBRDF::sample_sigma_derivative_lambert(i, MixtureMaterial(material, uv));
         }
@@ -331,7 +353,7 @@ namespace brdfd_techniques {
     }
 
     ibsdf::sample_out bsdf_sample_d_4th(ibsdf::sample_in i, MaterialData material, float2 uv) {
-        ibsdf::sample_out o;
+        ibsdf::sample_out o = {};
         switch (material.bxdf_type) {
         case 4: return MixtureBRDF::sample_sigma_derivative_nonlambert(i, MixtureMaterial(material, uv));
         }
@@ -339,7 +361,7 @@ namespace brdfd_techniques {
     }
 
     ibsdf::sample_out bsdf_sample_d_5th(ibsdf::sample_in i, MaterialData material, float2 uv) {
-        ibsdf::sample_out o;
+        ibsdf::sample_out o = {};
         switch (material.bxdf_type) {
         case 4: return MixtureBRDF::sample_ggx_alpha_derivative_pos(i, MixtureMaterial(material, uv));
         }
@@ -347,7 +369,7 @@ namespace brdfd_techniques {
     }
 
     ibsdf::sample_out bsdf_sample_d_6th(ibsdf::sample_in i, MaterialData material, float2 uv) {
-        ibsdf::sample_out o;
+        ibsdf::sample_out o = {};
         switch (material.bxdf_type) {
         case 4: return MixtureBRDF::sample_ggx_alpha_derivative_neg(i, MixtureMaterial(material, uv));
         }

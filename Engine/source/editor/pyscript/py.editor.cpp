@@ -126,6 +126,7 @@ PYBIND11_MODULE(pyeditor, m) {
       .def_static("render", &editor::ImGuiContext::render)
       .def_static("getRawCtx", &editor::ImGuiContext::getRawCtx, py::return_value_policy::reference);
 
+
     // Export EditorContext struct
     // ------------------------------------------------------------------------
     py::class_<editor::EditorContext> class_EditorContext(m, "EditorContext");
@@ -210,6 +211,7 @@ PYBIND11_MODULE(pyeditor, m) {
     class_EditorBase.def_static("bindTimer", &editor::EditorBase::bindTimer);
     class_EditorBase.def_static("bindPipeline", &editor::EditorBase::bindPipeline);
     class_EditorBase.def_static("bindScene", &editor::EditorBase::bindScene);
+
 
     //py::class_<root::print>(class_root, "print")
     //  .def(py::init<>())

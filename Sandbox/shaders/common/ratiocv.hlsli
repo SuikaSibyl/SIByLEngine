@@ -22,4 +22,8 @@ primal_auxiliary<N> max<let N : int>(primal_auxiliary<N> x, float y) {
     return x;
 }
 
+float4 as_float4(primal_auxiliary<3> x) {
+    return float4(x.auxiliaries, x.primal);
+}
+
 #endif // _SRENDERER_COMMON_RATIO_CV_HEADER_

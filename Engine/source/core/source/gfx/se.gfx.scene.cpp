@@ -11,7 +11,7 @@
 #include <nanovdb/NanoVDB.h>
 #define NANOVDB_USE_ZIP 1
 #include <nanovdb/util/IO.h>
-
+#include "ex.happly.hpp"
 
 namespace se::gfx {
 static std::array<uint64_t, 24> primes = {3,  5,  7,  11, 13, 17, 19, 23,
@@ -303,7 +303,25 @@ auto Scene::serialize() noexcept -> tinygltf::Model {
     return tinygltf::Value(diff_param_extra);
   };
 
+  std::unordered_map<Texture*, int32_t> image_map;
   std::unordered_map<Texture*, int32_t> texture_map;
+  auto add_image = [&](Texture* texture) -> int {
+    if (texture == nullptr) return -1;
+    auto iter = image_map.find(texture);
+    if (iter != image_map.end()) {
+      return iter->second;
+    }
+    int image_id = m.images.size();
+    //std::unique_ptr<se::buffer> serialized_tex = texture->getBinaryBuffer();
+    tinygltf::Image gltf_image;
+    //gltf_image.width = texture->getWidth();
+    //gltf_image.height = texture->getHeight();
+    //gltf_image.component = 4;
+    gltf_image.uri = texture->filename;
+    m.images.push_back(gltf_image);
+    image_map[texture] = image_id;
+    return image_id;
+  };
   auto add_texture = [&](Texture* texture) -> int {
     if (texture == nullptr) return -1;
     auto iter = texture_map.find(texture);
@@ -316,6 +334,9 @@ auto Scene::serialize() noexcept -> tinygltf::Model {
     gltf_texture_extra["type"] = tinygltf::Value(int(texture->type));
     if (texture->type == Texture::TextureType::bufTexture) {
       gltf_texture_extra["dparam"] = add_differentiable_parameter(&(texture->bufTex.value()));
+    }
+    else if (texture->type == Texture::TextureType::vkTexture) {
+      gltf_texture.source = add_image(texture);
     }
 
     gltf_texture.extras = tinygltf::Value(gltf_texture_extra);
@@ -354,6 +375,12 @@ auto Scene::serialize() noexcept -> tinygltf::Model {
     if (material->additionalTex.get() != nullptr) {
       material_extra["additional_tex"] = tinygltf::Value(add_texture(material->additionalTex.get()));
     }
+    material_extra["ext_vector_2"] = tinygltf::Value(tinygltf::Value::Array{
+      tinygltf::Value(material->floatvec_2.x),
+      tinygltf::Value(material->floatvec_2.y),
+      tinygltf::Value(material->floatvec_2.z),
+      tinygltf::Value(material->floatvec_2.w),
+      });
 
     gltf_material.extras = tinygltf::Value(material_extra);
 
@@ -501,92 +528,75 @@ auto Scene::serialize() noexcept -> tinygltf::Model {
       MediumHandle medium = pair.second.first;
       tinygltf::Value::Object media_extra;
       media_extra["type"] = tinygltf::Value(int(medium->packet.type));
+      media_extra["scale"] = tinygltf::Value(medium->packet.scale);
+      media_extra["bound_min_x"] = tinygltf::Value(medium->packet.bound_min.x);
+      media_extra["bound_min_y"] = tinygltf::Value(medium->packet.bound_min.y);
+      media_extra["bound_min_z"] = tinygltf::Value(medium->packet.bound_min.z);
+      media_extra["bound_max_x"] = tinygltf::Value(medium->packet.bound_max.x);
+      media_extra["bound_max_y"] = tinygltf::Value(medium->packet.bound_max.y);
+      media_extra["bound_max_z"] = tinygltf::Value(medium->packet.bound_max.z);
+      media_extra["grid_nx"] = tinygltf::Value(medium->packet.density_nxyz.x);
+      media_extra["grid_ny"] = tinygltf::Value(medium->packet.density_nxyz.y);
+      media_extra["grid_nz"] = tinygltf::Value(medium->packet.density_nxyz.z);
+      media_extra["aniso_x"] = tinygltf::Value(medium->packet.aniso.x);
+      media_extra["aniso_y"] = tinygltf::Value(medium->packet.aniso.y);
+      media_extra["aniso_z"] = tinygltf::Value(medium->packet.aniso.z);
+      media_extra["sigma_a_x"] = tinygltf::Value(medium->packet.sigmaA.x);
+      media_extra["sigma_a_y"] = tinygltf::Value(medium->packet.sigmaA.y);
+      media_extra["sigma_a_z"] = tinygltf::Value(medium->packet.sigmaA.z);
+      media_extra["sigma_s_x"] = tinygltf::Value(medium->packet.sigmaS.x);
+      media_extra["sigma_s_y"] = tinygltf::Value(medium->packet.sigmaS.y);
+      media_extra["sigma_s_z"] = tinygltf::Value(medium->packet.sigmaS.z);
 
       if (medium->packet.type == Medium::MediumType::Homogeneous) {
-        media_extra["scale"] = tinygltf::Value(medium->packet.scale);
-        media_extra["bound_min_x"] = tinygltf::Value(medium->packet.bound_min.x);
-        media_extra["bound_min_y"] = tinygltf::Value(medium->packet.bound_min.y);
-        media_extra["bound_min_z"] = tinygltf::Value(medium->packet.bound_min.z);
-        media_extra["bound_max_x"] = tinygltf::Value(medium->packet.bound_max.x);
-        media_extra["bound_max_y"] = tinygltf::Value(medium->packet.bound_max.y);
-        media_extra["bound_max_z"] = tinygltf::Value(medium->packet.bound_max.z);
-        media_extra["grid_nx"] = tinygltf::Value(medium->packet.density_nxyz.x);
-        media_extra["grid_ny"] = tinygltf::Value(medium->packet.density_nxyz.y);
-        media_extra["grid_nz"] = tinygltf::Value(medium->packet.density_nxyz.z);
-        media_extra["aniso_x"] = tinygltf::Value(medium->packet.aniso.x);
-        media_extra["aniso_y"] = tinygltf::Value(medium->packet.aniso.y);
-        media_extra["aniso_z"] = tinygltf::Value(medium->packet.aniso.z);
+
       }
       else if (medium->packet.type == Medium::MediumType::GridMedium) {
-        //media_extra["scale"] = tinygltf::Value(medium->packet.scale);
-        //media_extra["bound_min_x"] = tinygltf::Value(medium->packet.bound_min.x);
-        //media_extra["bound_min_y"] = tinygltf::Value(medium->packet.bound_min.y);
-        //media_extra["bound_min_z"] = tinygltf::Value(medium->packet.bound_min.z);
-        //media_extra["bound_max_x"] = tinygltf::Value(medium->packet.bound_max.x);
-        //media_extra["bound_max_y"] = tinygltf::Value(medium->packet.bound_max.y);
-        //media_extra["bound_max_z"] = tinygltf::Value(medium->packet.bound_max.z);
-        //media_extra["grid_nx"] = tinygltf::Value(medium->packet.density_nxyz.x);
-        //media_extra["grid_ny"] = tinygltf::Value(medium->packet.density_nxyz.y);
-        //media_extra["grid_nz"] = tinygltf::Value(medium->packet.density_nxyz.z);
-        //media_extra["aniso_x"] = tinygltf::Value(medium->packet.aniso.x);
-        //media_extra["aniso_y"] = tinygltf::Value(medium->packet.aniso.y);
-        //media_extra["aniso_z"] = tinygltf::Value(medium->packet.aniso.z);
+        media_extra["o2w"] = tinygltf::Value(tinygltf::Value::Array{
+        tinygltf::Value(medium->packet.geometryTransform.matrix[0][0]),
+        tinygltf::Value(medium->packet.geometryTransform.matrix[0][1]),
+        tinygltf::Value(medium->packet.geometryTransform.matrix[0][2]),
+        tinygltf::Value(medium->packet.geometryTransform.matrix[0][3]),
+        tinygltf::Value(medium->packet.geometryTransform.matrix[1][0]),
+        tinygltf::Value(medium->packet.geometryTransform.matrix[1][1]),
+        tinygltf::Value(medium->packet.geometryTransform.matrix[1][2]),
+        tinygltf::Value(medium->packet.geometryTransform.matrix[1][3]),
+        tinygltf::Value(medium->packet.geometryTransform.matrix[2][0]),
+        tinygltf::Value(medium->packet.geometryTransform.matrix[2][1]),
+        tinygltf::Value(medium->packet.geometryTransform.matrix[2][2]),
+        tinygltf::Value(medium->packet.geometryTransform.matrix[2][3]),
+          });
+        media_extra["w2o"] = tinygltf::Value(tinygltf::Value::Array{
+          tinygltf::Value(medium->packet.geometryTransformInverse.matrix[0][0]),
+          tinygltf::Value(medium->packet.geometryTransformInverse.matrix[0][1]),
+          tinygltf::Value(medium->packet.geometryTransformInverse.matrix[0][2]),
+          tinygltf::Value(medium->packet.geometryTransformInverse.matrix[0][3]),
+          tinygltf::Value(medium->packet.geometryTransformInverse.matrix[1][0]),
+          tinygltf::Value(medium->packet.geometryTransformInverse.matrix[1][1]),
+          tinygltf::Value(medium->packet.geometryTransformInverse.matrix[1][2]),
+          tinygltf::Value(medium->packet.geometryTransformInverse.matrix[1][3]),
+          tinygltf::Value(medium->packet.geometryTransformInverse.matrix[2][0]),
+          tinygltf::Value(medium->packet.geometryTransformInverse.matrix[2][1]),
+          tinygltf::Value(medium->packet.geometryTransformInverse.matrix[2][2]),
+          tinygltf::Value(medium->packet.geometryTransformInverse.matrix[2][3]),
+          });
+        //medium_handle->packet.geometryTransform
+        int sigma_a_size = int(medium->density->values.size());
+        auto [sigma_a_tgt, offset] = allocate_buffer(sigma_a_size);
+        memcpy(sigma_a_tgt, medium->density->values.data(), sizeof(float)* sigma_a_size);
+        media_extra["density_size"] = tinygltf::Value(sigma_a_size);
+        media_extra["density_offset"] = tinygltf::Value(offset);
 
-        //media_extra["o2w"] = tinygltf::Value(tinygltf::Value::Array{
-        //  tinygltf::Value(medium->packet.geometryTransform.matrix[0][0]),
-        //  tinygltf::Value(medium->packet.geometryTransform.matrix[0][1]),
-        //  tinygltf::Value(medium->packet.geometryTransform.matrix[0][2]),
-        //  tinygltf::Value(medium->packet.geometryTransform.matrix[0][3]),
-        //  tinygltf::Value(medium->packet.geometryTransform.matrix[1][0]),
-        //  tinygltf::Value(medium->packet.geometryTransform.matrix[1][1]),
-        //  tinygltf::Value(medium->packet.geometryTransform.matrix[1][2]),
-        //  tinygltf::Value(medium->packet.geometryTransform.matrix[1][3]),
-        //  tinygltf::Value(medium->packet.geometryTransform.matrix[2][0]),
-        //  tinygltf::Value(medium->packet.geometryTransform.matrix[2][1]),
-        //  tinygltf::Value(medium->packet.geometryTransform.matrix[2][2]),
-        //  tinygltf::Value(medium->packet.geometryTransform.matrix[2][3]),
-        //  });
-        //media_extra["w2o"] = tinygltf::Value(tinygltf::Value::Array{
-        //  tinygltf::Value(medium->packet.geometryTransformInverse.matrix[0][0]),
-        //  tinygltf::Value(medium->packet.geometryTransformInverse.matrix[0][1]),
-        //  tinygltf::Value(medium->packet.geometryTransformInverse.matrix[0][2]),
-        //  tinygltf::Value(medium->packet.geometryTransformInverse.matrix[0][3]),
-        //  tinygltf::Value(medium->packet.geometryTransformInverse.matrix[1][0]),
-        //  tinygltf::Value(medium->packet.geometryTransformInverse.matrix[1][1]),
-        //  tinygltf::Value(medium->packet.geometryTransformInverse.matrix[1][2]),
-        //  tinygltf::Value(medium->packet.geometryTransformInverse.matrix[1][3]),
-        //  tinygltf::Value(medium->packet.geometryTransformInverse.matrix[2][0]),
-        //  tinygltf::Value(medium->packet.geometryTransformInverse.matrix[2][1]),
-        //  tinygltf::Value(medium->packet.geometryTransformInverse.matrix[2][2]),
-        //  tinygltf::Value(medium->packet.geometryTransformInverse.matrix[2][3]),
-        //  });
-        ////medium_handle->packet.geometryTransform
-        //int sigma_a_size = int(medium->density->values.size());
-        //auto [sigma_a_tgt, offset] = allocate_buffer(sigma_a_size);
-        //memcpy(sigma_a_tgt, medium->density->values.data(), sizeof(float) * sigma_a_size);
-        //media_extra["sigma_a_size"] = tinygltf::Value(sigma_a_size);
-        //media_extra["sigma_a_offset"] = tinygltf::Value(offset);
-        //int sigma_s_size = int(medium->temperatureGrid->values.size());
-        //auto [sigma_s_tgt, offset_s] = allocate_buffer(sigma_s_size);
-        //memcpy(sigma_s_tgt, medium->temperatureGrid->values.data(), sizeof(float) * sigma_s_size);
-        //media_extra["sigma_s_offset"] = tinygltf::Value(offset_s);
-        //media_extra["sigma_s_size"] = tinygltf::Value(sigma_s_size);
+        int sigma_s_size = int(medium->temperatureGrid->values.size());
+        if (sigma_s_size > 0) {
+          auto [sigma_s_tgt, offset_s] = allocate_buffer(sigma_s_size);
+          memcpy(sigma_s_tgt, medium->temperatureGrid->values.data(), sizeof(float)* sigma_s_size);
+          media_extra["temperature_offset"] = tinygltf::Value(offset_s);
+        }
+        media_extra["temperature_offset"] = tinygltf::Value(0);
+        media_extra["temperature_size"] = tinygltf::Value(sigma_s_size);
       }
       else if (medium->packet.type == Medium::MediumType::RGBGridMedium) {
-        media_extra["scale"] = tinygltf::Value(medium->packet.scale);
-        media_extra["bound_min_x"] = tinygltf::Value(medium->packet.bound_min.x);
-        media_extra["bound_min_y"] = tinygltf::Value(medium->packet.bound_min.y);
-        media_extra["bound_min_z"] = tinygltf::Value(medium->packet.bound_min.z);
-        media_extra["bound_max_x"] = tinygltf::Value(medium->packet.bound_max.x);
-        media_extra["bound_max_y"] = tinygltf::Value(medium->packet.bound_max.y);
-        media_extra["bound_max_z"] = tinygltf::Value(medium->packet.bound_max.z);
-        media_extra["grid_nx"] = tinygltf::Value(medium->packet.density_nxyz.x);
-        media_extra["grid_ny"] = tinygltf::Value(medium->packet.density_nxyz.y);
-        media_extra["grid_nz"] = tinygltf::Value(medium->packet.density_nxyz.z);
-        media_extra["aniso_x"] = tinygltf::Value(medium->packet.aniso.x);
-        media_extra["aniso_y"] = tinygltf::Value(medium->packet.aniso.y);
-        media_extra["aniso_z"] = tinygltf::Value(medium->packet.aniso.z);
-
         media_extra["o2w"] = tinygltf::Value(tinygltf::Value::Array{
           tinygltf::Value(medium->packet.geometryTransform.matrix[0][0]),
           tinygltf::Value(medium->packet.geometryTransform.matrix[0][1]),
@@ -942,8 +952,10 @@ auto Scene::updateGPUScene() noexcept -> void {
             if (gpuScene.light_buffer->host.size() < (light_index + packets.size()) * sizeof(Light::LightPacket)) {
               gpuScene.light_buffer->host.resize((light_index + packets.size()) * sizeof(Light::LightPacket));
             }
-            memcpy(&gpuScene.light_buffer->host[light_index * sizeof(Light::LightPacket)],
-              (float*)packets.data(), packets.size() * sizeof(Light::LightPacket));
+            if (packets.size() > 0) {
+              memcpy(&gpuScene.light_buffer->host[light_index * sizeof(Light::LightPacket)],
+                (float*)packets.data(), packets.size() * sizeof(Light::LightPacket));
+            }
           }
         }
         gpuScene.light_buffer->host_stamp++;
@@ -1359,6 +1371,7 @@ auto Scene::GPUScene::try_fetch_medium_index(MediumHandle& handle) noexcept -> i
       handle->packet.temperature_bound_min = handle->temperatureGrid->bounds.pMin;
       handle->packet.temperature_bound_max = handle->temperatureGrid->bounds.pMax;
       grid_storage_buffer->host.resize(sizeof(float) * (offset + size));
+      if (size > 0)
       memcpy(&(grid_storage_buffer->host[offset * sizeof(float)]),
         handle->temperatureGrid->values.data(), size * sizeof(float));
       grid_storage_buffer->host_stamp++;
@@ -1702,6 +1715,155 @@ auto loadObjMesh(std::string path, Scene& scene) noexcept -> MeshHandle {
   return mesh;
 }
 
+
+auto loadPlyMesh(std::string path, Scene& scene) noexcept -> MeshHandle {
+  // Construct a data object by reading from file
+  happly::PLYData plyIn(path);
+ // Get mesh-style data from the object
+  std::vector<std::array<double, 3>> vPos = plyIn.getVertexPositions();
+  std::vector<std::vector<size_t>> fInd = plyIn.getFaceIndices<size_t>();
+
+  std::vector<float> vertexBufferV = {};
+  std::vector<float> positionBufferV = {};
+  std::vector<uint32_t> indexBufferWV = {};
+  // create mesh resource
+  MeshHandle mesh = GFXContext::load_mesh_empty();
+
+  // translate the shape to se format
+  uint32_t vertex_offset = 0;
+  vec3 position_max = vec3(-1e9);
+  vec3 position_min = vec3(1e9);
+  // Loop over faces(polygon)
+  size_t index_offset = 0;
+  for (size_t f = 0; f < fInd.size(); f++) {
+    std::vector<size_t> const& faceInd = fInd[f];
+    // require tangent
+    if (faceInd.size() != 3) {
+      root::print::error(
+        "GFX :: SceneNodeLoader_obj :: non-triangle geometry not "
+        "supported when required TANGENT attribute now.");
+      return MeshHandle{};
+    }
+
+    vec3 tangent = {};
+    vec3 bitangent = {};
+
+    vec3 positions[3];
+    for (size_t v = 0; v < 3; v++) {
+      // index finding
+      size_t idx = faceInd[index_offset + v];
+      positions[v] = { vPos[idx][0], vPos[idx][1], vPos[idx][2] };
+    }
+    vec3 edge1 = positions[1] - positions[0];
+    vec3 edge2 = positions[2] - positions[0];
+    vec3 normal = normalize(cross(edge1, edge2));
+
+    // Loop over vertices in the face.
+    for (size_t v = 0; v < faceInd.size(); v++) {
+      // index finding
+      size_t idx = faceInd[index_offset + v];
+      // atrributes filling
+      std::vector<float> vertex = {};
+      std::vector<float> position = {};
+
+      for (auto const& entry : defaultMeshDataLayout.layout) {
+        // vertex position
+        if (entry.info == MeshDataLayout::VertexInfo::POSITION) {
+          if (entry.format == rhi::VertexFormat::FLOAT32X3) {
+            float vx = vPos[idx][0];
+            float vy = vPos[idx][1];
+            float vz = vPos[idx][2];
+            vertex.push_back(vx);
+            vertex.push_back(vy);
+            vertex.push_back(vz);
+            position_min = se::min(position_min, vec3{ vx,vy,vz });
+            position_max = se::max(position_max, vec3{ vx,vy,vz });
+            if (defaultMeshLoadConfig.usePositionBuffer) {
+              position.push_back(vx);
+              position.push_back(vy);
+              position.push_back(vz);
+            }
+          }
+          else {
+            root::print::error(
+              "GFX :: SceneNodeLoader_obj :: unwanted vertex format for "
+              "POSITION attributes.");
+            return MeshHandle{};
+          }
+        }
+        else if (entry.info == MeshDataLayout::VertexInfo::NORMAL) {
+          vertex.push_back(normal.x);
+          vertex.push_back(normal.y);
+          vertex.push_back(normal.z);
+        }
+        else if (entry.info == MeshDataLayout::VertexInfo::UV) {
+          vertex.push_back(0);
+          vertex.push_back(0);
+        }
+        else if (entry.info == MeshDataLayout::VertexInfo::TANGENT) {
+          vertex.push_back(tangent.x);
+          vertex.push_back(tangent.y);
+          vertex.push_back(tangent.z);
+        }
+        else if (entry.info == MeshDataLayout::VertexInfo::COLOR) {
+          vertex.push_back(0);
+          vertex.push_back(0);
+          vertex.push_back(0);
+        }
+        else if (entry.info == MeshDataLayout::VertexInfo::CUSTOM) {
+        }
+      }
+      //
+      {
+        vertexBufferV.insert(vertexBufferV.end(), vertex.begin() + 3, vertex.end());
+        positionBufferV.insert(positionBufferV.end(), position.begin(), position.end());
+        // index filling
+        if (defaultMeshLoadConfig.layout.format == rhi::IndexFormat::UINT16_t)
+          indexBufferWV.push_back(vertex_offset);
+        else if (defaultMeshLoadConfig.layout.format == rhi::IndexFormat::UINT32_T)
+          indexBufferWV.push_back(vertex_offset);
+        ++vertex_offset;
+      }
+    }
+
+  }
+
+  index_offset += fInd.size() * 3;
+  
+  // load Material
+  Mesh::MeshPrimitive sePrimitive;
+  sePrimitive.offset = 0;
+  sePrimitive.size = index_offset;
+  sePrimitive.baseVertex = 0;
+  sePrimitive.numVertex = positionBufferV.size() / 3 - 0;
+  sePrimitive.max = position_max;
+  sePrimitive.min = position_min;
+  mesh.get()->primitives.emplace_back(std::move(sePrimitive));
+  
+  { // register mesh
+    Buffer* position_buffer = scene.gpuScene.position_buffer.get();
+    size_t position_size = sizeof(float) * positionBufferV.size();
+    size_t position_offset = position_buffer->host.size();
+    position_buffer->host.resize(position_size + position_offset);
+    memcpy(&position_buffer->host[position_offset], positionBufferV.data(), position_size);
+    mesh.get()->vertex_offset = position_offset;
+
+    Buffer* index_buffer = scene.gpuScene.index_buffer.get();
+    size_t index_size = sizeof(uint32_t) * indexBufferWV.size();
+    size_t index_offset = index_buffer->host.size();
+    index_buffer->host.resize(index_size + index_offset);
+    memcpy(&index_buffer->host[index_offset], indexBufferWV.data(), index_size);
+    mesh.get()->index_offset = index_offset;
+
+    Buffer* vertex_buffer = scene.gpuScene.vertex_buffer.get();
+    size_t vertex_size = sizeof(float) * vertexBufferV.size();
+    size_t vertex_offset = vertex_buffer->host.size();
+    vertex_buffer->host.resize(vertex_size + vertex_offset);
+    memcpy(&vertex_buffer->host[vertex_offset], vertexBufferV.data(), vertex_size);
+  }
+  return mesh;
+}
+
 struct glTFLoaderEnv {
   std::string directory;
   std::unordered_map<tinygltf::Texture const*, TextureHandle> textures;
@@ -1802,13 +1964,18 @@ auto loadGLTFMaterial(tinygltf::Material const* glmaterial, tinygltf::Model cons
     int tex_id = extras.Get("additional_tex").GetNumberAsInt();
     mat->additionalTex = env.textures[&(model->textures[tex_id])];
   }
-  //{ // load diffuse texture
-  //  if (glmaterial->pbrMetallicRoughness.baseColorTexture.index != -1) {
-  //    tinygltf::Texture const& texture = model->textures[glmaterial->pbrMetallicRoughness.baseColorTexture.index];
-  //    Core::GUID texBasecolor = loadGLTFMaterialTextures(&texture, model, env, gfxscene, meshConfig);
-  //    gfxmat.textures["base_color"] = GFX::Material::TextureEntry{texBasecolor, 0, to_sampler(texture.sampler)};
-  //  }
-  //}
+  if (extras.Has("ext_vector_2")) {
+    tinygltf::Value ext_vector_2 = extras.Get("ext_vector_2");
+    mat->floatvec_2[0] = (float)ext_vector_2.Get(0).GetNumberAsDouble();
+    mat->floatvec_2[1] = (float)ext_vector_2.Get(1).GetNumberAsDouble();
+    mat->floatvec_2[2] = (float)ext_vector_2.Get(2).GetNumberAsDouble();
+    mat->floatvec_2[3] = (float)ext_vector_2.Get(3).GetNumberAsDouble();
+  }
+  { // load diffuse texture
+    if (glmaterial->pbrMetallicRoughness.baseColorTexture.index != -1) {
+      mat->basecolorTex = env.textures[&(model->textures[glmaterial->pbrMetallicRoughness.baseColorTexture.index])];
+    }
+  }
 
   return mat;
 }
@@ -2503,7 +2670,23 @@ auto loadXMLMaterial(TPM_NAMESPACE::Object const* node,
     mat->roughnessFactor = alpha;
     TPM_NAMESPACE::Color spec = mat_node->property("specular_reflectance").getColor();
     mat->floatvec_2 = vec4{ eta.r, eta.g, eta.b, spec.r };
-  } else {
+  }
+  else if (mat_node->pluginType() == "roughdielectric") {
+    auto look_up_ior = [](std::string const& name) -> float {
+      if (name == "bk7") return 1.5046;
+      if (name == "air") return 1.000277;
+      return 1.5046;
+    };
+
+    mat->bxdf = 6;
+    float alpha = mat_node->property("alpha").getNumber(1.f);
+    std::string int_ior = mat_node->property("int_ior").getString();
+    std::string ext_ior = mat_node->property("ext_ior").getString();
+    
+    mat->roughnessFactor = alpha;
+    mat->floatvec_2.w = look_up_ior(int_ior) / look_up_ior(ext_ior);
+  }
+  else {
     mat->bxdf = 0;
   }
 
@@ -2612,6 +2795,38 @@ auto loadXMLMesh(TPM_NAMESPACE::Object const* node, xmlLoaderEnv* env,
     std::string filename = node->property("filename").getString();
     std::string obj_path = env->directory + "/" + filename;
     MeshHandle mesh = loadObjMesh(obj_path, scene);
+    
+    scene.gpuScene.position_buffer->host_stamp++;
+    scene.gpuScene.index_buffer->host_stamp++;
+    scene.gpuScene.vertex_buffer->host_stamp++;
+    auto& mesh_renderer = scene.registry.emplace<MeshRenderer>(gfxNode.entity);
+    mesh_renderer.mesh = mesh;
+
+    { // process the transform
+      TPM_NAMESPACE::Transform transform =
+        node->property("to_world").getTransform();
+      se::mat4 mat = {
+        transform.matrix[0],  transform.matrix[1],  transform.matrix[2],
+        transform.matrix[3],  transform.matrix[4],  transform.matrix[5],
+        transform.matrix[6],  transform.matrix[7],  transform.matrix[8],
+        transform.matrix[9],  transform.matrix[10], transform.matrix[11],
+        transform.matrix[12], transform.matrix[13], transform.matrix[14],
+        transform.matrix[15] };
+      //mat = se::transpose(mat);
+      se::vec3 t, s; se::Quaternion quat;
+      se::decompose(mat, &t, &quat, &s);
+
+      auto& transformComponent = scene.registry.get<Transform>(gfxNode.entity);
+      transformComponent.translation = t;
+      transformComponent.scale = s;
+      transformComponent.rotation = quat;
+    }
+    handle_material_medium(mesh_renderer);
+  }
+  else if (node->pluginType() == "ply") {
+    std::string filename = node->property("filename").getString();
+    std::string obj_path = env->directory + "/" + filename;
+    MeshHandle mesh = loadPlyMesh(obj_path, scene);
     
     scene.gpuScene.position_buffer->host_stamp++;
     scene.gpuScene.index_buffer->host_stamp++;
@@ -2963,7 +3178,7 @@ void mitsuba_parse_volume_spectrum(TPM_NAMESPACE::Object* node, MediumHandle& me
   }
 }
 
-SceneLoader::result_type SceneLoader::operator()(SceneLoader::from_gltf_tag, std::string const& path) {
+void load_scene_gltf_internal(std::string const& path, Scene* scene) {
   // load the gltf file
   tinygltf::TinyGLTF loader;
   tinygltf::Model model;
@@ -2971,16 +3186,15 @@ SceneLoader::result_type SceneLoader::operator()(SceneLoader::from_gltf_tag, std
   std::string warn;
   bool ret = loader.LoadASCIIFromFile(&model, &err, &warn, path);
   if (!warn.empty()) {
-    root::print::error("Scene::deserialize warn::" + warn); return nullptr;
+    root::print::error("Scene::deserialize warn::" + warn); return;
   } if (!err.empty()) {
-    root::print::error("Scene::deserialize error::" + err); return nullptr;
+    root::print::error("Scene::deserialize error::" + err); return;
   } if (!ret) {
-    root::print::error("Failed to parse glTF"); return nullptr;
+    root::print::error("Failed to parse glTF"); return;
   }
-  // parse the gltf file to SE scene
-  // -------------------------------------------------------------
-  SceneLoader::result_type scene = std::make_shared<Scene>();
+
   glTFLoaderEnv env;
+  env.directory = std::filesystem::path(path).parent_path().string();
 
   for (int i = 0; i < model.textures.size(); ++i) {
     tinygltf::Texture const& texture_gltf = model.textures[i];
@@ -2995,6 +3209,20 @@ SceneLoader::result_type SceneLoader::operator()(SceneLoader::from_gltf_tag, std
       int num_aux = float(dparam.Get("num_aux").GetNumberAsInt());
       TextureHandle texture = gfx::GFXContext::create_buf_texture_desc(desc, default_value, num_aux, replica_num);
       env.textures[&texture_gltf] = texture;
+    }
+    else {
+      auto const& image_gltf = model.images[texture_gltf.source];
+      if (image_gltf.image.size() > 0) {
+        TextureHandle texture = gfx::GFXContext::create_texture_binary(
+          image_gltf.width, image_gltf.height, image_gltf.component, 1, (const char*)image_gltf.image.data());
+        texture->filename = image_gltf.uri;
+        env.textures[&texture_gltf] = texture;
+      }
+      else {
+        std::string file_path = env.directory + "/" + image_gltf.uri;
+        TextureHandle texture = gfx::GFXContext::create_texture_file(file_path);
+        env.textures[&texture_gltf] = texture;
+      }
     }
   }
 
@@ -3014,29 +3242,103 @@ SceneLoader::result_type SceneLoader::operator()(SceneLoader::from_gltf_tag, std
     for (int medium_index = 0; medium_index < medium_instances.ArrayLen(); ++medium_index) {
       MediumHandle medium = GFXContext::load_medium_empty();
       tinygltf::Value instance = medium_instances.Get(medium_index);
-      if (instance.Get("type").GetNumberAsInt() == 2) {
+      medium->packet.aniso = {
+        (float)instance.Get("aniso_x").GetNumberAsDouble(),
+        (float)instance.Get("aniso_y").GetNumberAsDouble(),
+        (float)instance.Get("aniso_z").GetNumberAsDouble(),
+      };
+      medium->packet.bound_min = {
+        (float)instance.Get("bound_min_x").GetNumberAsDouble(),
+        (float)instance.Get("bound_min_y").GetNumberAsDouble(),
+        (float)instance.Get("bound_min_z").GetNumberAsDouble(),
+      };
+      medium->packet.bound_max = {
+        (float)instance.Get("bound_max_x").GetNumberAsDouble(),
+        (float)instance.Get("bound_max_y").GetNumberAsDouble(),
+        (float)instance.Get("bound_max_z").GetNumberAsDouble(),
+      };
+      medium->packet.sigmaA = {
+        (float)instance.Get("sigma_a_x").GetNumberAsDouble(),
+        (float)instance.Get("sigma_a_y").GetNumberAsDouble(),
+        (float)instance.Get("sigma_a_z").GetNumberAsDouble(),
+      };
+      medium->packet.sigmaS = {
+        (float)instance.Get("sigma_s_x").GetNumberAsDouble(),
+        (float)instance.Get("sigma_s_y").GetNumberAsDouble(),
+        (float)instance.Get("sigma_s_z").GetNumberAsDouble(),
+      };
+      ivec3 const grid_nxyz = {
+        (float)instance.Get("grid_nx").GetNumberAsInt(),
+        (float)instance.Get("grid_ny").GetNumberAsInt(),
+        (float)instance.Get("grid_nz").GetNumberAsInt(),
+      };
+      medium->packet.scale = (float)instance.Get("scale").GetNumberAsDouble();
+
+      if (instance.Get("type").GetNumberAsInt() == 0) {
+        medium->packet.type = Medium::MediumType::Homogeneous;
+      }
+      else if (instance.Get("type").GetNumberAsInt() == 1) {
+        medium->packet.type = Medium::MediumType::GridMedium;
+        tinygltf::Value o2w = instance.Get("o2w");
+        medium->packet.geometryTransform.matrix[0][0] = (float)o2w.Get(0).GetNumberAsDouble();
+        medium->packet.geometryTransform.matrix[0][1] = (float)o2w.Get(1).GetNumberAsDouble();
+        medium->packet.geometryTransform.matrix[0][2] = (float)o2w.Get(2).GetNumberAsDouble();
+        medium->packet.geometryTransform.matrix[0][3] = (float)o2w.Get(3).GetNumberAsDouble();
+        medium->packet.geometryTransform.matrix[1][0] = (float)o2w.Get(4).GetNumberAsDouble();
+        medium->packet.geometryTransform.matrix[1][1] = (float)o2w.Get(5).GetNumberAsDouble();
+        medium->packet.geometryTransform.matrix[1][2] = (float)o2w.Get(6).GetNumberAsDouble();
+        medium->packet.geometryTransform.matrix[1][3] = (float)o2w.Get(7).GetNumberAsDouble();
+        medium->packet.geometryTransform.matrix[2][0] = (float)o2w.Get(8).GetNumberAsDouble();
+        medium->packet.geometryTransform.matrix[2][1] = (float)o2w.Get(9).GetNumberAsDouble();
+        medium->packet.geometryTransform.matrix[2][2] = (float)o2w.Get(10).GetNumberAsDouble();
+        medium->packet.geometryTransform.matrix[2][3] = (float)o2w.Get(11).GetNumberAsDouble();
+        tinygltf::Value w2o = instance.Get("w2o");
+        medium->packet.geometryTransformInverse.matrix[0][0] = (float)w2o.Get(0).GetNumberAsDouble();
+        medium->packet.geometryTransformInverse.matrix[0][1] = (float)w2o.Get(1).GetNumberAsDouble();
+        medium->packet.geometryTransformInverse.matrix[0][2] = (float)w2o.Get(2).GetNumberAsDouble();
+        medium->packet.geometryTransformInverse.matrix[0][3] = (float)w2o.Get(3).GetNumberAsDouble();
+        medium->packet.geometryTransformInverse.matrix[1][0] = (float)w2o.Get(4).GetNumberAsDouble();
+        medium->packet.geometryTransformInverse.matrix[1][1] = (float)w2o.Get(5).GetNumberAsDouble();
+        medium->packet.geometryTransformInverse.matrix[1][2] = (float)w2o.Get(6).GetNumberAsDouble();
+        medium->packet.geometryTransformInverse.matrix[1][3] = (float)w2o.Get(7).GetNumberAsDouble();
+        medium->packet.geometryTransformInverse.matrix[2][0] = (float)w2o.Get(8).GetNumberAsDouble();
+        medium->packet.geometryTransformInverse.matrix[2][1] = (float)w2o.Get(9).GetNumberAsDouble();
+        medium->packet.geometryTransformInverse.matrix[2][2] = (float)w2o.Get(10).GetNumberAsDouble();
+        medium->packet.geometryTransformInverse.matrix[2][3] = (float)w2o.Get(11).GetNumberAsDouble();
+
+        bounds3 bounds = { medium->packet.bound_min,medium->packet.bound_max };
+
+        int density_offset = instance.Get("density_offset").GetNumberAsInt();
+        int density_size = instance.Get("density_size").GetNumberAsInt();
+        medium->density = Medium::SampledGrid{
+          grid_nxyz.x, grid_nxyz.y, grid_nxyz.z,
+          std::vector<float>{medium_buffer.begin() + density_offset, medium_buffer.begin() + density_offset + density_size},
+          bounds, 1
+        };
+
+        int temperature_offset = instance.Get("temperature_offset").GetNumberAsInt();
+        int temperature_size = instance.Get("temperature_size").GetNumberAsInt();
+        medium->temperatureGrid = Medium::SampledGrid{
+          grid_nxyz.x, grid_nxyz.y, grid_nxyz.z,
+          std::vector<float>{medium_buffer.begin() + temperature_offset, medium_buffer.begin() + temperature_offset + temperature_size},
+          bounds, 1
+        };
+
+        // create majorant grid
+        medium->majorantGrid = Medium::MajorantGrid();
+        medium->majorantGrid->res = ivec3(16, 16, 16);
+        medium->majorantGrid->bounds = { medium->packet.bound_min, medium->packet.bound_max };
+        medium->majorantGrid->voxels.resize(16 * 16 * 16);
+        // Initialize _majorantGrid_ for _GridMedium_
+        for (int z = 0; z < medium->majorantGrid->res.z; ++z)
+          for (int y = 0; y < medium->majorantGrid->res.y; ++y)
+            for (int x = 0; x < medium->majorantGrid->res.x; ++x) {
+              bounds3 bounds = medium->majorantGrid->voxel_bounds(x, y, z);
+              medium->majorantGrid->set(x, y, z, medium->density->max_value(bounds));
+            }
+      }
+      else if (instance.Get("type").GetNumberAsInt() == 2) {
         medium->packet.type = Medium::MediumType::RGBGridMedium;
-        medium->packet.aniso = {
-          (float)instance.Get("aniso_x").GetNumberAsDouble(),
-          (float)instance.Get("aniso_y").GetNumberAsDouble(),
-          (float)instance.Get("aniso_z").GetNumberAsDouble(),
-        };
-        medium->packet.bound_min = {
-          (float)instance.Get("bound_min_x").GetNumberAsDouble(),
-          (float)instance.Get("bound_min_y").GetNumberAsDouble(),
-          (float)instance.Get("bound_min_z").GetNumberAsDouble(),
-        };
-        medium->packet.bound_max = {
-          (float)instance.Get("bound_max_x").GetNumberAsDouble(),
-          (float)instance.Get("bound_max_y").GetNumberAsDouble(),
-          (float)instance.Get("bound_max_z").GetNumberAsDouble(),
-        };
-        medium->packet.scale = (float)instance.Get("scale").GetNumberAsDouble();
-        ivec3 const grid_nxyz = {
-          (float)instance.Get("grid_nx").GetNumberAsInt(),
-          (float)instance.Get("grid_ny").GetNumberAsInt(),
-          (float)instance.Get("grid_nz").GetNumberAsInt(),
-        };
         tinygltf::Value o2w = instance.Get("o2w");
         medium->packet.geometryTransform.matrix[0][0] = (float)o2w.Get(0).GetNumberAsDouble();
         medium->packet.geometryTransform.matrix[0][1] = (float)o2w.Get(1).GetNumberAsDouble();
@@ -3117,16 +3419,18 @@ SceneLoader::result_type SceneLoader::operator()(SceneLoader::from_gltf_tag, std
   int scene_idx = model.defaultScene;
   if (model.scenes.empty()) {
     root::print::error("SceneLoader::from_gltf_tag :: Scene is empty");
-    return nullptr;
-  } else if (model.defaultScene >= int(model.scenes.size())) {
+    return;
+  }
+  else if (model.defaultScene >= int(model.scenes.size())) {
     root::print::error("SceneLoader::tinygltf :: Invalid defualtScene value");
-    return nullptr;
-  } else if (model.defaultScene == -1) {
+    return;
+  }
+  else if (model.defaultScene == -1) {
     // Use the first scene.
     scene_idx = 0;
   }
   // set all root nodes for the default scene
-  scene->roots.clear();
+  //scene->roots.clear();
   for (auto node : model.scenes[scene_idx].nodes) {
     scene->roots.push_back(nodes[node]);
   }
@@ -3169,7 +3473,7 @@ SceneLoader::result_type SceneLoader::operator()(SceneLoader::from_gltf_tag, std
     // process the mesh
     if (gltfNode.mesh != -1) {
       tinygltf::Mesh& mesh_gltf = model.meshes[gltfNode.mesh];
-      MeshHandle mesh = loadGLTFMesh(mesh_gltf, seNode, *scene.get(), i, &model, env);
+      MeshHandle mesh = loadGLTFMesh(mesh_gltf, seNode, *scene, i, &model, env);
       scene->gpuScene.position_buffer->host_stamp++;
       scene->gpuScene.index_buffer->host_stamp++;
       scene->gpuScene.vertex_buffer->host_stamp++;
@@ -3181,9 +3485,9 @@ SceneLoader::result_type SceneLoader::operator()(SceneLoader::from_gltf_tag, std
         if (mesh->primitives[i].material.get()) {
           MaterialHandle& mat = mesh->primitives[i].material;
           if (mat->emissiveColor.r > 0 ||
-              mat->emissiveColor.g > 0 ||
-              mat->emissiveColor.b > 0) {
-              emissive_primitives.push_back(i);
+            mat->emissiveColor.g > 0 ||
+            mat->emissiveColor.b > 0) {
+            emissive_primitives.push_back(i);
           }
         }
       }
@@ -3244,6 +3548,13 @@ SceneLoader::result_type SceneLoader::operator()(SceneLoader::from_gltf_tag, std
   //    }
   //  }
   //}
+}
+
+SceneLoader::result_type SceneLoader::operator()(SceneLoader::from_gltf_tag, std::string const& path) {
+  // parse the gltf file to SE scene
+  // -------------------------------------------------------------
+  SceneLoader::result_type scene = std::make_shared<Scene>();
+  load_scene_gltf_internal(path, scene.get());
   return scene;
 }
 
@@ -3278,6 +3589,7 @@ SceneLoader::result_type SceneLoader::operator()(SceneLoader::from_xml_tag, std:
           medium->packet.sigmaA = { sigma_a.r, sigma_a.g, sigma_a.b };
           medium->packet.sigmaS = { sigma_s.r, sigma_s.g, sigma_s.b };
           medium->packet.scale = obj->property("scale").getNumber();
+          medium->packet.type = Medium::MediumType::Homogeneous;
         }
         else if (obj->pluginType() == "heterogeneous") {
           bounds3 bound;
@@ -3980,4 +4292,9 @@ auto GFXContext::create_scene(std::string const& name) noexcept -> SceneHandle {
   ret.first->second->dirtyFlags = (uint64_t)se::gfx::Scene::DirtyFlagBit::ALL;
   return SceneHandle{ ret.first->second };
 }
+
+auto GFXContext::add_scene_gltf(std::string const& path, SceneHandle scene) noexcept -> void {
+  load_scene_gltf_internal(path, &((gfx::Scene&)(scene.handle)));
+}
+
 }

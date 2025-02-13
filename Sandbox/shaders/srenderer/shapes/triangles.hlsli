@@ -10,7 +10,24 @@ struct TriangleParameter : IShapeParameter {
     float3 v2; float3 n2;
     float4x4 o2w; float4x4 o2wn;
     
-    __init() {}
+    __init() {
+        v0 = float3(0, 0, 0);
+        v1 = float3(0, 0, 0);
+        v2 = float3(0, 0, 0);
+        n0 = float3(0, 0, 0);
+        n1 = float3(0, 0, 0);
+        n2 = float3(0, 0, 0);
+        o2w = float4x4(
+            1, 0, 0, 0,
+            0, 1, 0, 0,
+            0, 0, 1, 0,
+            0, 0, 0, 1);
+        o2wn = float4x4(
+            1, 0, 0, 0,
+            0, 1, 0, 0,
+            0, 0, 1, 0,
+            0, 0, 0, 1);
+    }
     __init(LightPacket light) {
         // sample a triangle in the geometry
         const uint primitiveID = light.uintscalar_0;
@@ -56,12 +73,12 @@ struct Triangle : IShape {
             geometric_normal = -geometric_normal;
         }
         // fill the output structure
-        ishape::sample o;
+        ishape::sample o = {};
         o.position = mul(float4(param.v0 + (e1 * b1) + (e2 * b2), 1), param.o2w).xyz;
         o.normal = -normalize(mul(float4(geometric_normal, 0.0), param.o2wn).xyz);
         const float3 direction = normalize(o.position - i.position);
         o.pdf = length_squared(o.position - i.position) 
-        / (area * max(dot(o.normal, direction), 0));
+        / (area * abs(dot(o.normal, direction)));
         return o;
     }
 

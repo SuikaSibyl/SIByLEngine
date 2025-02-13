@@ -545,6 +545,7 @@ auto SlangSession::load(
   std::vector<slang::IComponentType*> componentTypes;
   componentTypes.push_back(slangModule);
   for (size_t i = 0; i < entrypoints.size(); ++i) {
+
     SlangInt32 w = slangModule->getDefinedEntryPointCount();
     SlangResult result = slangModule->findEntryPointByName(
         entrypoints[i].first.c_str(), entryPointsPtrs[i].writeRef());
@@ -833,6 +834,107 @@ auto Texture::getHeight() noexcept -> uint32_t {
   }
 }
 
+auto Texture::getBinaryBuffer() noexcept -> std::unique_ptr<se::buffer> {
+  size_t width = texture->width();
+  size_t height = texture->height();
+
+  rhi::TextureFormat format;
+  size_t pixelSize;
+  if (texture->format() == rhi::TextureFormat::RGBA32_FLOAT) {
+    format = rhi::TextureFormat::RGBA32_FLOAT;
+    pixelSize = sizeof(se::vec4);
+  }
+  else if (texture->format() == rhi::TextureFormat::RGBA8_UNORM
+    || texture->format() == rhi::TextureFormat::RGBA8_UNORM_SRGB) {
+    format = rhi::TextureFormat::RGBA8_UNORM;
+    pixelSize = sizeof(uint8_t) * 4;
+  }
+  else {
+    root::print::error(
+      "Editor :: ViewportWidget :: captureImage() :: Unsupported format to "
+      "capture."); return nullptr;
+  }
+
+  std::unique_ptr<rhi::CommandEncoder> commandEncoder =
+    gfx::GFXContext::device->createCommandEncoder({});
+
+  TextureHandle copyDst{};
+  if (copyDst.get() == nullptr) {
+    rhi::TextureDescriptor desc{
+      {uint32_t(width), uint32_t(height), 1}, 1, 1, 1,
+      rhi::TextureDimension::TEX2D, format,
+      (uint32_t)rhi::TextureUsageBit::COPY_DST |
+      (uint32_t)rhi::TextureUsageBit::TEXTURE_BINDING,
+      {format}, (uint32_t)rhi::TextureFlagBit::HOSTI_VISIBLE };
+    copyDst = GFXContext::create_texture_desc(desc);
+    commandEncoder->pipelineBarrier(rhi::BarrierDescriptor{
+      (uint32_t)rhi::PipelineStageBit::ALL_GRAPHICS_BIT,
+      (uint32_t)rhi::PipelineStageBit::TRANSFER_BIT,
+      (uint32_t)rhi::DependencyType::NONE,
+      {}, {}, {rhi::TextureMemoryBarrierDescriptor{
+        copyDst->texture.get(),
+        rhi::ImageSubresourceRange{(uint32_t)rhi::TextureAspectBit::COLOR_BIT, 0, 1, 0, 1},
+        (uint32_t)rhi::AccessFlagBits::NONE,
+        (uint32_t)rhi::AccessFlagBits::TRANSFER_WRITE_BIT,
+        rhi::TextureLayout::SHADER_READ_ONLY_OPTIMAL,
+        rhi::TextureLayout::TRANSFER_DST_OPTIMAL}} });
+  }
+  gfx::GFXContext::device->waitIdle();
+  commandEncoder->pipelineBarrier(rhi::BarrierDescriptor{
+    (uint32_t)rhi::PipelineStageBit::FRAGMENT_SHADER_BIT,
+    (uint32_t)rhi::PipelineStageBit::TRANSFER_BIT,
+    (uint32_t)rhi::DependencyType::NONE,
+    {}, {}, { rhi::TextureMemoryBarrierDescriptor{
+      texture.get(),
+      rhi::ImageSubresourceRange{(uint32_t)rhi::TextureAspectBit::COLOR_BIT, 0, 1, 0, 1},
+      (uint32_t)rhi::AccessFlagBits::SHADER_READ_BIT |
+          (uint32_t)rhi::AccessFlagBits::SHADER_WRITE_BIT,
+      (uint32_t)rhi::AccessFlagBits::TRANSFER_READ_BIT,
+      rhi::TextureLayout::SHADER_READ_ONLY_OPTIMAL,
+      rhi::TextureLayout::TRANSFER_SRC_OPTIMAL}} });
+  commandEncoder->copyTextureToTexture(
+    rhi::ImageCopyTexture{ texture.get() },
+    rhi::ImageCopyTexture{ copyDst->texture.get() },
+    rhi::Extend3D{ uint32_t(width), uint32_t(height), 1 });
+  commandEncoder->pipelineBarrier(rhi::BarrierDescriptor{
+    (uint32_t)rhi::PipelineStageBit::TRANSFER_BIT,
+    (uint32_t)rhi::PipelineStageBit::FRAGMENT_SHADER_BIT,
+    (uint32_t)rhi::DependencyType::NONE,
+    {}, {}, { rhi::TextureMemoryBarrierDescriptor{
+      texture.get(),
+      rhi::ImageSubresourceRange{(uint32_t)rhi::TextureAspectBit::COLOR_BIT, 0, 1, 0, 1},
+      (uint32_t)rhi::AccessFlagBits::TRANSFER_READ_BIT,
+      (uint32_t)rhi::AccessFlagBits::SHADER_READ_BIT |
+          (uint32_t)rhi::AccessFlagBits::SHADER_WRITE_BIT,
+      rhi::TextureLayout::TRANSFER_SRC_OPTIMAL,
+      rhi::TextureLayout::SHADER_READ_ONLY_OPTIMAL}} });
+  commandEncoder->pipelineBarrier(rhi::BarrierDescriptor{
+    (uint32_t)rhi::PipelineStageBit::TRANSFER_BIT,
+    (uint32_t)rhi::PipelineStageBit::HOST_BIT,
+    (uint32_t)rhi::DependencyType::NONE,
+    {}, {}, { rhi::TextureMemoryBarrierDescriptor{
+      copyDst->texture.get(),
+      rhi::ImageSubresourceRange{(uint32_t)rhi::TextureAspectBit::COLOR_BIT, 0, 1, 0, 1},
+      (uint32_t)rhi::AccessFlagBits::TRANSFER_WRITE_BIT,
+      (uint32_t)rhi::AccessFlagBits::HOST_READ_BIT,
+      rhi::TextureLayout::TRANSFER_DST_OPTIMAL,
+      rhi::TextureLayout::TRANSFER_DST_OPTIMAL}} });
+
+  gfx::GFXContext::device->getGraphicsQueue()->submit(
+    { commandEncoder->finish() });
+  gfx::GFXContext::device->waitIdle();
+  std::future<bool> mapped = copyDst->texture->mapAsync((uint32_t)rhi::MapMode::READ, 0,
+    width * height * pixelSize);
+  if (mapped.get()) {
+    void* data = copyDst->texture->getMappedRange(0, width * height * pixelSize);
+    std::unique_ptr<se::buffer> buff = std::make_unique<se::buffer>(width * height * pixelSize);
+    memcpy((float*)(buff->data), (float*)data, width * height * pixelSize);
+    return std::move(buff);
+    copyDst->texture->unmap();
+  }
+  return nullptr;
+}
+
 TextureLoader::result_type TextureLoader::operator()(from_desc_tag, rhi::TextureDescriptor const& desc) {
   TextureLoader::result_type result = std::make_shared<Texture>();
   result->texture = GFXContext::device->createTexture(desc);
@@ -860,6 +962,7 @@ TextureLoader::result_type TextureLoader::operator()(from_file_tag, std::filesys
   std::unique_ptr<rhi::CommandEncoder> commandEncoder = GFXContext::device->createCommandEncoder({nullptr});
   // create texture image
   result->texture = GFXContext::device->createTexture(host_tex->getDescriptor());
+  result->filename = path.string();
   // copy to target
   commandEncoder->pipelineBarrier(rhi::BarrierDescriptor{
     (uint32_t)rhi::PipelineStageBit::TOP_OF_PIPE_BIT,
@@ -899,6 +1002,72 @@ TextureLoader::result_type TextureLoader::operator()(from_file_tag, std::filesys
           rhi::TextureLayout::SHADER_READ_ONLY_OPTIMAL}}});
 
   GFXContext::device->getGraphicsQueue()->submit({commandEncoder->finish()});
+  GFXContext::device->waitIdle();
+  return result;
+}
+
+TextureLoader::result_type TextureLoader::operator()(
+  from_binary_tag, int width, int height, int channel, int bits, const char* data
+ ) {
+  TextureLoader::result_type result = std::make_shared<Texture>();
+  std::unique_ptr<image::Texture> host_tex = image::Binary::fromBinary(width, height, channel, bits, data);
+  // create staging buffer
+  rhi::BufferDescriptor stagingBufferDescriptor;
+  stagingBufferDescriptor.size = host_tex->data_size;
+  stagingBufferDescriptor.usage = (uint32_t)rhi::BufferUsageBit::COPY_SRC;
+  stagingBufferDescriptor.memoryProperties =
+    (uint32_t)rhi::MemoryPropertyBit::HOST_VISIBLE_BIT |
+    (uint32_t)rhi::MemoryPropertyBit::HOST_COHERENT_BIT;
+  stagingBufferDescriptor.mappedAtCreation = true;
+  std::unique_ptr<rhi::Buffer> stagingBuffer = GFXContext::device->createBuffer(stagingBufferDescriptor);
+  std::future<bool> mapped = stagingBuffer->mapAsync(0, 0, stagingBufferDescriptor.size);
+  if (mapped.get()) {
+    void* mapdata = stagingBuffer->getMappedRange(0, stagingBufferDescriptor.size);
+    memcpy(mapdata, host_tex->getData(), (size_t)stagingBufferDescriptor.size);
+    stagingBuffer->unmap();
+  }
+  std::unique_ptr<rhi::CommandEncoder> commandEncoder = GFXContext::device->createCommandEncoder({ nullptr });
+  // create texture image
+  result->texture = GFXContext::device->createTexture(host_tex->getDescriptor());
+  // copy to target
+  commandEncoder->pipelineBarrier(rhi::BarrierDescriptor{
+    (uint32_t)rhi::PipelineStageBit::TOP_OF_PIPE_BIT,
+    (uint32_t)rhi::PipelineStageBit::TRANSFER_BIT,
+    (uint32_t)rhi::DependencyType::NONE,
+    {}, {}, { rhi::TextureMemoryBarrierDescriptor{
+      result->texture.get(),
+      rhi::ImageSubresourceRange{(uint32_t)rhi::TextureAspectBit::COLOR_BIT, 0,
+                                     host_tex->mip_levels, 0, host_tex->array_layers},
+      (uint32_t)rhi::AccessFlagBits::NONE,
+      (uint32_t)rhi::AccessFlagBits::TRANSFER_WRITE_BIT,
+      rhi::TextureLayout::UNDEFINED,
+      rhi::TextureLayout::TRANSFER_DST_OPTIMAL}} });
+
+  for (auto const& subresource : host_tex->subResources) {
+    commandEncoder->copyBufferToTexture(
+      { subresource.offset, 0, 0, stagingBuffer.get() },
+      { result->texture.get(),
+      subresource.mip,
+      {},
+      (uint32_t)rhi::TextureAspectBit::COLOR_BIT },
+      { subresource.width, subresource.height, 1 });
+  }
+
+  commandEncoder->pipelineBarrier(rhi::BarrierDescriptor{
+      (uint32_t)rhi::PipelineStageBit::TRANSFER_BIT,
+      (uint32_t)rhi::PipelineStageBit::FRAGMENT_SHADER_BIT,
+      (uint32_t)rhi::DependencyType::NONE,
+      {}, {},
+      {rhi::TextureMemoryBarrierDescriptor{
+          result->texture.get(),
+          rhi::ImageSubresourceRange{(uint32_t)rhi::TextureAspectBit::COLOR_BIT, 0,
+                                     host_tex->mip_levels, 0, host_tex->array_layers},
+          (uint32_t)rhi::AccessFlagBits::TRANSFER_WRITE_BIT,
+          (uint32_t)rhi::AccessFlagBits::SHADER_READ_BIT,
+          rhi::TextureLayout::TRANSFER_DST_OPTIMAL,
+          rhi::TextureLayout::SHADER_READ_ONLY_OPTIMAL}} });
+
+  GFXContext::device->getGraphicsQueue()->submit({ commandEncoder->finish() });
   GFXContext::device->waitIdle();
   return result;
 }
@@ -1080,6 +1249,17 @@ auto GFXContext::create_texture_desc(rhi::TextureDescriptor const& desc) noexcep
 auto GFXContext::create_texture_file(std::string const& path) noexcept -> TextureHandle {
   RUID const ruid = root::resource::queryRUID();
   auto ret = textures.load(ruid, TextureLoader::from_file_tag{}, path);
+  gfx::GFXContext::device->trainsitionTextureLayout(ret.first->second->texture.get(),
+    se::rhi::TextureLayout::UNDEFINED, se::rhi::TextureLayout::GENERAL);
+  return TextureHandle{ ret.first->second, ruid };
+}
+
+auto GFXContext::create_texture_binary(
+  int width, int height, int channel,
+  int bits, const char* data) noexcept -> TextureHandle {
+  RUID const ruid = root::resource::queryRUID();
+  auto ret = textures.load(ruid, TextureLoader::from_binary_tag{}, 
+    width, height, channel, bits, data);
   gfx::GFXContext::device->trainsitionTextureLayout(ret.first->second->texture.get(),
     se::rhi::TextureLayout::UNDEFINED, se::rhi::TextureLayout::GENERAL);
   return TextureHandle{ ret.first->second, ruid };

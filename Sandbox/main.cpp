@@ -23,6 +23,7 @@ std::unique_ptr<se::window> window = se::window::create(se::window::WindowOption
    se::rhi::ContextExtensionBit::USE_AFTERMATH));
  std::unique_ptr<se::rhi::Adapter> adapter = context->requestAdapter({});
 
+
  std::unique_ptr<se::rhi::Device> device = adapter->requestDevice();
  se::rhi::CUDAContext::initialize(device.get());
  se::gfx::GFXContext::initialize(device.get());
@@ -44,39 +45,54 @@ std::unique_ptr<se::window> window = se::window::create(se::window::WindowOption
  //std::string path = "D:/Art/Scenes/living-room-2/scene_v3.xml";
  //std::string path = "P:/GitProjects/lajolla_public/scenes/volpath_test/hetvol.xml";
  //std::string path = "S:/SIByL2024/Sandbox/examples/prb/_data/plane-albedo-diff.gltf";
- std::string path = "D:/Art/Scenes/teaser/bunny-cloud.pbrt";
+ //std::string path = "D:/Art/Scenes/teaser/bunny-cloud.pbrt";
+ //std::string path = "D:/Art/Scenes/dragon-vol/dragon/dragon.xml";
+ //std::string path = "C:/Users/suika/Downloads/cup/Sketchfab_Scene.gltf";
 
- //std::string path = "P:/GitProjects/lajolla_public/scenes/volpath_test/volpath_test2.gltf";
- //auto scene = se::gfx::GFXContext::load_scene_xml(path);
- auto scene = se::gfx::GFXContext::load_scene_pbrt(path);
+
+ //auto shader = se::gfx::GFXContext::load_shader_slang("S:/SIByL2024/Sandbox/examples/prb/_shaders/backward.slang",
+ //  { {"ComputeMain", se::rhi::ShaderStageBit::COMPUTE} }, {}, false);
+ std::string path1 = "D:/Art/Scenes/artstudio/source/partial.gltf";
+ std::string path2 = "D:/Art/Scenes/veach-mis-mitsuba/synthesis5-scene_v3.gltf";
+ auto scene = se::gfx::GFXContext::load_scene_gltf(path2);
+ se::gfx::GFXContext::add_scene_gltf(path1, scene);
+ //std::string path = "D:/Art/Scenes/veach-mis-mitsuba/test-scene_v3.gltf";
  //auto scene = se::gfx::GFXContext::load_scene_gltf(path);
+ //se::gfx::GFXContext::add_scene_gltf("C:/Users/suika/Downloads/bunny/scene.gltf", scene);
 
+ ////std::string path = "P:/GitProjects/lajolla_public/scenes/volpath_test/volpath_test2.gltf";
+ ////auto scene = se::gfx::GFXContext::load_scene_xml(path);
+ ////auto scene = se::gfx::GFXContext::load_scene_pbrt(path);
+ ////auto scene = se::gfx::GFXContext::load_scene_gltf(path);
+
+ float a = 1.f;
  scene->updateTransform();
  scene->updateGPUScene();
- int light_counts = scene->getSceneLightCounts();
+ //int light_counts = scene->getSceneLightCounts();
 
- auto packets = scene->gpuScene.export_texture_parameters();
+ //auto packets = scene->gpuScene.export_texture_parameters();
 
- auto a1 = scene->getGPUScene()->export_param_primal();
- auto a2 = scene->getGPUScene()->export_param_gradient();
- auto a3 = scene->getGPUScene()->export_texture_parameters();
+ //auto a1 = scene->getGPUScene()->export_param_primal();
+ //auto a2 = scene->getGPUScene()->export_param_gradient();
+ //auto a3 = scene->getGPUScene()->export_texture_parameters();
 
- for (int i = 0; i < a3.size(); ++i) {
-   auto packet = a3[i];
+ //for (int i = 0; i < a3.size(); ++i) {
+ //  auto packet = a3[i];
 
-   auto prim_cu = se::rhi::CUDAContext::toCUDABufferInterval(
-     a1->getDevice(),
-     packet.offset_primal * 4, packet.dim_0 * packet.dim_1 * packet.dim_2 * 4);
- }
+ //  auto prim_cu = se::rhi::CUDAContext::toCUDABufferInterval(
+ //    a1->getDevice(),
+ //    packet.offset_primal * 4, packet.dim_0 * packet.dim_1 * packet.dim_2 * 4);
+ //}
+ //
+
+ ////std::vector<float> pmf = { 0.1,0.2,0.3,0.4 };
+ ////auto pc1d = se::gfx::PMFConstructor::build_piecewise_constant_1d(pmf, 0,1);
+ ////float pdf; int offset;
+ ////float a = pc1d.sample(0.09, pdf, offset);
+ scene->serialize("D:/Art/Scenes/veach-mis-mitsuba/synthesis6-scene_v3.gltf");
 
 
- //std::vector<float> pmf = { 0.1,0.2,0.3,0.4 };
- //auto pc1d = se::gfx::PMFConstructor::build_piecewise_constant_1d(pmf, 0,1);
- //float pdf; int offset;
- //float a = pc1d.sample(0.09, pdf, offset);
- scene->serialize("D:/Art/Scenes/veach-mis-mitsuba/scene_v3.gltf");
-
- auto test = scene->getGPUScene()->bindingResourceGrids();
+ //auto test = scene->getGPUScene()->bindingResourceGrids();
 
  device->waitIdle();
  se::editor::EditorBase::finalize();
