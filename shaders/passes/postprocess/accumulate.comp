@@ -1,0 +1,131 @@
+#version 450
+#extension GL_EXT_samplerless_texture_functions : require
+layout(column_major) uniform;
+layout(column_major) buffer;
+
+#line 7 0
+struct SLANG_ParameterGroup_PushConstants_std430_0
+{
+    uvec2 resolution_0;
+    uint gAccumCount_0;
+    bool gAccumulate_0;
+    bool gMovingAverageMode_0;
+};
+
+
+#line 3
+layout(push_constant)
+layout(std430) uniform block_SLANG_ParameterGroup_PushConstants_std430_0
+{
+    uvec2 resolution_0;
+    uint gAccumCount_0;
+    bool gAccumulate_0;
+    bool gMovingAverageMode_0;
+}PushConstants_0;
+
+#line 9
+layout(binding = 0)
+uniform texture2D u_input_0;
+
+
+#line 10
+layout(rgba32f)
+layout(binding = 1)
+uniform image2D u_lastSum_0;
+
+
+#line 11
+layout(rgba32f)
+layout(binding = 2)
+uniform image2D u_output_0;
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+void main()
+{
+
+
+    uvec2 _S1 = uvec2(ivec3(gl_GlobalInvocationID).xy);
+
+#line 20
+    if((any(bvec2((greaterThanEqual(_S1,PushConstants_0.resolution_0))))))
+    {
+
+#line 20
+        return;
+    }
+    ;
+
+#line 22
+    ivec3 _S2 = ivec3(uvec3(_S1, 0U));
+
+#line 22
+    vec4 _S3 = (texelFetch((u_input_0), ((_S2)).xy, ((_S2)).z));
+    if((PushConstants_0.gAccumCount_0) == 0U)
+    {
+
+#line 24
+        imageStore((u_lastSum_0), (ivec2(_S1)), vec4(0.0));
+
+#line 23
+    }
+
+#line 23
+    vec4 outputColor_0;
+
+#line 28
+    if(PushConstants_0.gAccumulate_0)
+    {
+
+#line 29
+        float curWeight_0 = 1.0 / float(PushConstants_0.gAccumCount_0 + 1U);
+        if(PushConstants_0.gMovingAverageMode_0)
+        {
+
+            ivec2 _S4 = ivec2(_S1);
+
+#line 33
+            vec4 _S5 = (imageLoad((u_lastSum_0), (_S4)));
+            vec4 outputColor_1 = mix(_S5, _S3, vec4(curWeight_0));
+            imageStore((u_lastSum_0), (_S4), outputColor_1);
+
+#line 35
+            outputColor_0 = outputColor_1;
+
+#line 30
+        }
+        else
+        {
+
+#line 40
+            ivec2 _S6 = ivec2(_S1);
+
+#line 40
+            vec4 _S7 = (imageLoad((u_lastSum_0), (_S6)));
+
+#line 40
+            vec4 sum_0 = _S7 + _S3;
+            vec4 _S8 = sum_0 * curWeight_0;
+            imageStore((u_lastSum_0), (_S6), sum_0);
+
+#line 42
+            outputColor_0 = _S8;
+
+#line 30
+        }
+
+#line 28
+    }
+    else
+    {
+
+#line 28
+        outputColor_0 = _S3;
+
+#line 28
+    }
+
+#line 51
+    imageStore((u_output_0), (ivec2(_S1)), outputColor_0);
+    return;
+}
+
