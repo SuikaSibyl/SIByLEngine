@@ -1,4 +1,4 @@
-# SIByLEngine 0.0.2
+# SIByLEngine 0.0.3
 
 `SIByLEngine` is a toy renderer framework based on `Vulkan`,
 designed for rapid prototyping of real-time and offline graphics algorithms requiring GPU acceleration.
@@ -15,7 +15,7 @@ To run many of our examples, the GPU must also support hardware ray tracing.
 ## Install precompiled binaries
 Follow the steps below to install our framework. Please use the specified `Python` and `Torch` versions. <br>
 If you require compatibility with other Python and Torch versions, please build from the source code.
-```powershellexample
+```powershell
 # create a new conda environment
 conda create -n sibyl python=3.8.18
 conda activate sibyl
@@ -29,6 +29,13 @@ pip install sibylengine
 # install additional packages for examples
 pip install matplotlib
 ```
+
+Meanwhile, we highly recommend installing the [Vulkan SDK](https://vulkan.lunarg.com/sdk/home#windows),
+as it helps with debugging.
+
+Our examples assume that the Vulkan SDK is properly installed.
+If you prefer to work without Vulkan SDK, you need to comment out the line containing `core.rhi.EnumContextExtension.DEBUG_UTILS` in our `common.py` file.
+Additionally, you may need to install [shader-slang](https://github.com/shader-slang/slang) separately.
 
 ## Examples
 To run the examples, please download this repository.
@@ -58,8 +65,8 @@ Here is a list of provided examples:
 When the app is a real-time project with editor enabled, 
 it is straight forward to use [NVIDIA Nsight Graphics](https://developer.nvidia.com/nsight-graphics) for debugging and profiling.
 For example, to debug the `wos-forward` project, use `Frame Debugger` with following setting:
-| Item | fill with (example) | comments |
+| item | fill with (example) | comments |
 | ----------- | ----------- | ----------- |
-| Application Executable | `d:/Anaconda/envs/sibyl/python.exe` | Path to your conda environment |
-| Working Directory | `d:/GitProjects/sibylengine/examples` | Path to this git project |
-| Command Line Argument | `d:/GitProjects/sibylengine/examples/wos/wos_forward.py` | Path to the executable Python |
+| *Application Executable* | `d:/Anaconda/envs/sibyl/python.exe` | path to your conda environment |
+| *Working Directory* | `d:/GitProjects/sibylengine/` | path to the root of this project |
+| *Command Line Argument* | `d:/GitProjects/sibylengine/examples/wos/wos_forward.py` | path to the executable Python |
