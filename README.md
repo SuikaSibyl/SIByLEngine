@@ -21,7 +21,7 @@ The compilation is tested on Windows 11 machine with Visual Studio 2022 (11.17.2
 1) Download Vulkan SDK from [LunarG](https://vulkan.lunarg.com/sdk/home#windows), and install it. This is mandatory to enable Validation layer, which is helpful for potential error detection. Test compilation uses VulkanSDK-1.3.290.0 (latest release), but moderately older version should also work.
 2) Open the SIByLEngine.sln solution with VisualStudio 2022.
 Select "Sandbox" project as target and hit compilation. It will take some time, but ideally you should eventually be able to compile everything without getting error. You should be able to compile with any GPU, but to run the default example you will need a NV GPU supporting hardware ray tracing.
-3) Download scene binaries from [google drive link](https://drive.google.com/file/d/1_tCI2eo3ASknxz26kWvQJBKBTgsoL9Eh/view?usp=drive_link), uncompress it in root folder so that its "Sandbox" folder overlaps with the "Sandbox" folder already exists.
+3) Find the scene binaries **Sandbox.zip** in the root folder, uncompress it in root folder so that its "Sandbox" folder overlaps with the "Sandbox" folder already exists.
 4) You should be able to run the example hopefully.
 
 

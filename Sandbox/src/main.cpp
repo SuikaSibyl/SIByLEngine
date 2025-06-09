@@ -254,7 +254,7 @@ struct SandBoxApplication : public Application::ApplicationBase {
     static int pipeline_id = 0;
     ImGui::Begin("Pipeline Choose");
     {  // Select an item type
-      const char* item_names[] = {"Path Tracing",   "ReSTIR GI",
+      const char* item_names[] = {"Path Tracing",   "SSPG",
                                   "Geo Inspector",  "VXPG + ReSTIR",
                                   "VXPG + ASVGF",   "Vanilla VXPG"};
       bool reselect = ImGui::Combo("Mode", &pipeline_id, item_names, IM_ARRAYSIZE(item_names),
