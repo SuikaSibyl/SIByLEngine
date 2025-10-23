@@ -86,6 +86,7 @@ namespace slang_inline {
 
     sessionDesc.searchPaths = found_path_cstr.data();
     sessionDesc.searchPathCount = found_path_cstr.size();
+
     // push pre-defined macros
     std::vector<slang::PreprocessorMacroDesc> macro_list;
     for (auto const& macro : macros)
@@ -221,6 +222,7 @@ namespace slang_inline {
     for (size_t i = 0; i < entrypoints.size(); ++i) {
 
       SlangInt32 w = slangModule->getDefinedEntryPointCount();
+      se::info("GFX::SLANG::Defined entry point count: " + std::to_string(w));
       SlangResult result = slangModule->findEntryPointByName(
         entrypoints[i].first.c_str(), entryPointsPtrs[i].writeRef());
       if (result != 0) {

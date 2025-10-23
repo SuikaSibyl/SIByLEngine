@@ -166,6 +166,93 @@ namespace se {
     static inline auto loadGLTFMesh(tinygltf::Mesh const& gltfmesh,
       Node& gfxNode, Scene& scene, int node_id, tinygltf::Model const* model,
       glTFLoaderEnv& env) noexcept -> MeshHandle {
+      // check for extensions and extras
+      tinygltf::Value mesh_extra = gltfmesh.extras;
+
+      auto handle_material_medium = [&](
+        tinygltf::Primitive const& meshPrimitive,
+        Mesh::CustomPrimitive& sePrimitive
+      ) {
+        if (meshPrimitive.material != -1) {
+          auto const& gltf_material = model->materials[meshPrimitive.material];
+          sePrimitive.material = loadGLTFMaterial(&gltf_material, model, env, scene, defaultMeshLoadConfig);
+        }
+        else {
+          sePrimitive.material = GFXContext::create_material_empty();
+        }
+        tinygltf::Value primitive_extra = meshPrimitive.extras;
+        if (primitive_extra.Has("exterior")) {
+          int exterior_index = primitive_extra.Get("exterior").GetNumberAsInt();
+          if (exterior_index >= 0) sePrimitive.exterior = env.mediums[exterior_index];
+        }
+        if (primitive_extra.Has("interior")) {
+          int interior_index = primitive_extra.Get("interior").GetNumberAsInt();
+          if (interior_index >= 0) sePrimitive.interior = env.mediums[interior_index];
+        }
+      };
+
+      if(mesh_extra.Has("custom_primitive")) {
+        size_t primitive_count = gltfmesh.primitives.size();
+        if (primitive_count != 1) {
+          se::error("Custom primitive mesh must have exactly one primitive.");
+          return MeshHandle{};
+        }
+        auto const& meshPrimitive = gltfmesh.primitives[0];
+
+        if (meshPrimitive.extras.Has("primitive_type")) {
+          // custom primitive handling
+          std::string primitive_type = meshPrimitive.extras.Get("primitive_type").Get<std::string>();
+          if (primitive_type == "sphere") {
+            std::string engine_path = Configuration::string_property("engine_path");
+            std::string obj_path = engine_path + "assets/meshes/sphere.obj";
+            MeshHandle mesh = load_obj_mesh(obj_path, scene);
+            mesh->m_customPrimitives.emplace_back();
+            Mesh::CustomPrimitive& sphere_primitive = mesh->m_customPrimitives.back();
+            sphere_primitive.primitiveType = 1;
+            sphere_primitive.min = -vec3(1.f);
+            sphere_primitive.max = vec3(1.f);
+            handle_material_medium(meshPrimitive, sphere_primitive);
+            return mesh;
+          }
+          else if (primitive_type == "cube") {
+            std::string engine_path = Configuration::string_property("engine_path");
+            std::string obj_path = engine_path + "assets/meshes/cube.obj";
+            MeshHandle mesh = load_obj_mesh(obj_path, scene);
+            mesh->m_customPrimitives.emplace_back();
+            Mesh::CustomPrimitive& cube_primitive = mesh->m_customPrimitives.back();
+            cube_primitive.primitiveType = 3;
+            cube_primitive.min = -vec3(1.f);
+            cube_primitive.max = vec3(1.f);
+            handle_material_medium(meshPrimitive, cube_primitive);
+            return mesh;
+          }
+          else if (primitive_type == "rectangle") {
+            std::string engine_path = Configuration::string_property("engine_path");
+            std::string obj_path = engine_path + "assets/meshes/rectangle.obj";
+            MeshHandle mesh = load_obj_mesh(obj_path, scene);
+            mesh->m_customPrimitives.emplace_back();
+            Mesh::CustomPrimitive& rectangle_primitive = mesh->m_customPrimitives.back();
+            rectangle_primitive.primitiveType = 2;
+            rectangle_primitive.min = -vec3(1.f);
+            rectangle_primitive.max = vec3(1.f);
+            handle_material_medium(meshPrimitive, rectangle_primitive);
+            return mesh;
+          }
+          else {
+            se::error("Unsupported custom primitive type: " + primitive_type);
+            return MeshHandle{};
+          }
+        }
+        else {
+          se::error("Custom primitive type not specified.");
+          return MeshHandle{};
+        }
+      }
+
+      // ----------------------------------------------------------------------
+      // Load ordinary triangle meshes
+      // Create empty mesh component
+      MeshHandle mesh = GFXContext::create_mesh_empty();
       // Load meshes into Runtime resource managers.
       rhi::Device* device = GFXContext::device();
       std::vector<uint32_t> indexBuffer_uint = {};
@@ -176,7 +263,6 @@ namespace se {
       // Create GFX mesh, and add it to resource manager
       size_t submesh_index_offset = 0;
       size_t submesh_vertex_offset = 0;
-      MeshHandle mesh = GFXContext::create_mesh_empty();
       // For each primitive
       for (auto const& meshPrimitive : gltfmesh.primitives) {
         std::vector<uint32_t> indexArray_uint = {};
@@ -515,6 +601,9 @@ namespace se {
           auto const& gltf_material = model->materials[meshPrimitive.material];
           sePrimitive.material = loadGLTFMaterial(&gltf_material, model, env, scene, defaultMeshLoadConfig);
         }
+        else {
+          sePrimitive.material = GFXContext::create_material_empty();
+        }
         tinygltf::Value primitive_extra = meshPrimitive.extras;
         if (primitive_extra.Has("exterior")) {
           int exterior_index = primitive_extra.Get("exterior").GetNumberAsInt();
@@ -571,18 +660,36 @@ namespace se {
       return mesh;
     }
 
+    static bool ends_with(const std::string& str, const std::string& suffix) {
+        return str.size() >= suffix.size() && str.compare(str.size()-suffix.size(), suffix.size(), suffix) == 0;
+    }
+
     auto Scene::load_gltf(std::string const& path) noexcept -> void {
       tinygltf::TinyGLTF loader;
       tinygltf::Model model;
       std::string err;
       std::string warn;
-      bool ret = loader.LoadASCIIFromFile(&model, &err, &warn, path);
-      if (!warn.empty()) {
-        se::error("Scene::deserialize warn::" + warn); return;
-      } if (!err.empty()) {
-        se::error("Scene::deserialize error::" + err); return;
-      } if (!ret) {
-        se::error("Failed to parse glTF"); return;
+
+      // if is binary glTF
+      if (ends_with(path, ".glb")) {
+        bool ret = loader.LoadBinaryFromFile(&model, &err, &warn, path);
+        if (!warn.empty()) {
+          se::error("Scene::deserialize warn::" + warn); return;
+        } if (!err.empty()) {
+          se::error("Scene::deserialize error::" + err); return;
+        } if (!ret) {
+          se::error("Failed to parse binary glTF"); return;
+        }
+      }
+      else {
+        bool ret = loader.LoadASCIIFromFile(&model, &err, &warn, path);
+        if (!warn.empty()) {
+          se::error("Scene::deserialize warn::" + warn); return;
+        } if (!err.empty()) {
+          se::error("Scene::deserialize error::" + err); return;
+        } if (!ret) {
+          se::error("Failed to parse glTF"); return;
+        }
       }
 
       glTFLoaderEnv env;

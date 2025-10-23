@@ -250,89 +250,95 @@ namespace gfx {
       int32_t vertex_buffer = data.add_buffer(
         _meshRender.m_mesh->m_vertexBuffer->get_host(), "Vertex Buffer");
 
-      for (auto& primitive : _meshRender.m_mesh->m_primitives) {
-        tinygltf::Primitive gltf_primitive;
-        { // position buffer
-          tinygltf::BufferView bufferView;
-          bufferView.buffer = position_buffer;
-          bufferView.byteOffset = primitive.baseVertex * sizeof(float) * 3;
-          bufferView.byteLength = primitive.numVertex * sizeof(float) * 3;
-          bufferView.target = TINYGLTF_TARGET_ARRAY_BUFFER;
-          tinygltf::Accessor accessor;
-          accessor.byteOffset = 0;
-          accessor.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
-          accessor.count = primitive.numVertex;
-          accessor.type = TINYGLTF_TYPE_VEC3;
-          accessor.maxValues = { primitive.max.x, primitive.max.y, primitive.max.z };
-          accessor.minValues = { primitive.min.x, primitive.min.y, primitive.min.z };
-          gltf_primitive.attributes["POSITION"] = data.add_view_accessor(bufferView, accessor);
-        }
-        { // index buffer
-          tinygltf::BufferView bufferView;
-          bufferView.buffer = index_buffer;
-          bufferView.byteOffset = primitive.offset * sizeof(uint32_t);
-          bufferView.byteLength = primitive.size * sizeof(uint32_t);
-          bufferView.target = TINYGLTF_TARGET_ELEMENT_ARRAY_BUFFER;
-          tinygltf::Accessor accessor;
-          accessor.byteOffset = 0;
-          accessor.componentType = TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT;
-          accessor.count = primitive.size;
-          accessor.type = TINYGLTF_TYPE_SCALAR;
-          gltf_primitive.indices = data.add_view_accessor(bufferView, accessor);
-        }
-        { // vertex buffer
-          tinygltf::BufferView bufferView;
-          bufferView.buffer = vertex_buffer;
-          size_t vertexByteOffset = primitive.baseVertex * sizeof(float) * 3;
-          bufferView.byteOffset = vertexByteOffset / 3 * 8;
-          bufferView.byteLength = primitive.numVertex * sizeof(float) * 8;
-          bufferView.byteStride = 8 * sizeof(float);
-          bufferView.target = TINYGLTF_TARGET_ARRAY_BUFFER;
-          int view_id = data.model->bufferViews.size();
-          data.model->bufferViews.push_back(bufferView);
-          // normal
-          tinygltf::Accessor accessor;
-          accessor.bufferView = view_id;
-          accessor.byteOffset = 0;
-          accessor.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
-          accessor.count = primitive.numVertex;
-          accessor.type = TINYGLTF_TYPE_VEC3;
-          gltf_primitive.attributes["NORMAL"] = data.add_accessor(accessor);
-          //// tangent
-          //accessor.byteOffset = sizeof(float) * 3;
-          //gltf_primitive.attributes["TANGENT"] = data.add_accessor(accessor);
-          // coord
-          accessor.byteOffset = sizeof(float) * 6;
-          accessor.type = TINYGLTF_TYPE_VEC2;
-          gltf_primitive.attributes["TEXCOORD_0"] = data.add_accessor(accessor);
-        }
-        //// texcoord1 buffer
-        //if (m.buffers.size() >= 4 && m.buffers[3].data.size() > 0) {
-        //  tinygltf::BufferView bufferView;
-        //  bufferView.buffer = 3;
-        //  bufferView.byteOffset = (primitive.baseVertex * sizeof(float) * 3 + se_mesh.mesh.get()->vertex_offset) * 2 / 3;
-        //  bufferView.byteLength = primitive.numVertex * sizeof(float) * 2;
-        //  bufferView.target = TINYGLTF_TARGET_ARRAY_BUFFER;
-        //  tinygltf::Accessor accessor;
-        //  accessor.byteOffset = 0;
-        //  accessor.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
-        //  accessor.count = primitive.numVertex;
-        //  accessor.type = TINYGLTF_TYPE_VEC2;
-        //  gltf_primitive.attributes["TEXCOORD_1"] = add_view_accessor(bufferView, accessor);
-        //}
-        gltf_primitive.mode = TINYGLTF_MODE_TRIANGLES;
-        gltf_primitive.material = data.add_material(primitive.material.get());
+      // triangle primitives
+      if (_meshRender.m_mesh->m_customPrimitives.size() == 0) {
+        for (auto& primitive : _meshRender.m_mesh->m_primitives) {
+          tinygltf::Primitive gltf_primitive;
+          { // position buffer
+            tinygltf::BufferView bufferView;
+            bufferView.buffer = position_buffer;
+            bufferView.byteOffset = primitive.baseVertex * sizeof(float) * 3;
+            bufferView.byteLength = primitive.numVertex * sizeof(float) * 3;
+            bufferView.target = TINYGLTF_TARGET_ARRAY_BUFFER;
+            tinygltf::Accessor accessor;
+            accessor.byteOffset = 0;
+            accessor.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
+            accessor.count = primitive.numVertex;
+            accessor.type = TINYGLTF_TYPE_VEC3;
+            accessor.maxValues = { primitive.max.x, primitive.max.y, primitive.max.z };
+            accessor.minValues = { primitive.min.x, primitive.min.y, primitive.min.z };
+            gltf_primitive.attributes["POSITION"] = data.add_view_accessor(bufferView, accessor);
+          }
+          { // index buffer
+            tinygltf::BufferView bufferView;
+            bufferView.buffer = index_buffer;
+            bufferView.byteOffset = primitive.offset * sizeof(uint32_t);
+            bufferView.byteLength = primitive.size * sizeof(uint32_t);
+            bufferView.target = TINYGLTF_TARGET_ELEMENT_ARRAY_BUFFER;
+            tinygltf::Accessor accessor;
+            accessor.byteOffset = 0;
+            accessor.componentType = TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT;
+            accessor.count = primitive.size;
+            accessor.type = TINYGLTF_TYPE_SCALAR;
+            gltf_primitive.indices = data.add_view_accessor(bufferView, accessor);
+          }
+          { // vertex buffer
+            tinygltf::BufferView bufferView;
+            bufferView.buffer = vertex_buffer;
+            size_t vertexByteOffset = primitive.baseVertex * sizeof(float) * 3;
+            bufferView.byteOffset = vertexByteOffset / 3 * 8;
+            bufferView.byteLength = primitive.numVertex * sizeof(float) * 8;
+            bufferView.byteStride = 8 * sizeof(float);
+            bufferView.target = TINYGLTF_TARGET_ARRAY_BUFFER;
+            int view_id = data.model->bufferViews.size();
+            data.model->bufferViews.push_back(bufferView);
+            // normal
+            tinygltf::Accessor accessor;
+            accessor.bufferView = view_id;
+            accessor.byteOffset = 0;
+            accessor.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
+            accessor.count = primitive.numVertex;
+            accessor.type = TINYGLTF_TYPE_VEC3;
+            gltf_primitive.attributes["NORMAL"] = data.add_accessor(accessor);
+            //// tangent
+            //accessor.byteOffset = sizeof(float) * 3;
+            //gltf_primitive.attributes["TANGENT"] = data.add_accessor(accessor);
+            // coord
+            accessor.byteOffset = sizeof(float) * 6;
+            accessor.type = TINYGLTF_TYPE_VEC2;
+            gltf_primitive.attributes["TEXCOORD_0"] = data.add_accessor(accessor);
+          }
+          //// texcoord1 buffer
+          //if (m.buffers.size() >= 4 && m.buffers[3].data.size() > 0) {
+          //  tinygltf::BufferView bufferView;
+          //  bufferView.buffer = 3;
+          //  bufferView.byteOffset = (primitive.baseVertex * sizeof(float) * 3 + se_mesh.mesh.get()->vertex_offset) * 2 / 3;
+          //  bufferView.byteLength = primitive.numVertex * sizeof(float) * 2;
+          //  bufferView.target = TINYGLTF_TARGET_ARRAY_BUFFER;
+          //  tinygltf::Accessor accessor;
+          //  accessor.byteOffset = 0;
+          //  accessor.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
+          //  accessor.count = primitive.numVertex;
+          //  accessor.type = TINYGLTF_TYPE_VEC2;
+          //  gltf_primitive.attributes["TEXCOORD_1"] = add_view_accessor(bufferView, accessor);
+          //}
+          gltf_primitive.mode = TINYGLTF_MODE_TRIANGLES;
+          gltf_primitive.material = data.add_material(primitive.material.get());
 
-        //tinygltf::Value::Object primitive_extra;
-        //primitive_extra["exterior"] = tinygltf::Value(add_medium(primitive.exterior));
-        //primitive_extra["interior"] = tinygltf::Value(add_medium(primitive.interior));
-        //gltf_primitive.extras = tinygltf::Value(primitive_extra);
+          //tinygltf::Value::Object primitive_extra;
+          //primitive_extra["exterior"] = tinygltf::Value(add_medium(primitive.exterior));
+          //primitive_extra["interior"] = tinygltf::Value(add_medium(primitive.interior));
+          //gltf_primitive.extras = tinygltf::Value(primitive_extra);
 
-        gltf_mesh.primitives.emplace_back(gltf_primitive);
+          gltf_mesh.primitives.emplace_back(gltf_primitive);
+        }
+        m->nodes[node_id].mesh = mesh_id;
       }
-      m->nodes[node_id].mesh = mesh_id;
+      // custom primitives
+      else {
+        se::error("Custom mesh primitive serialization not implemented yet.");
+      }
     }
-
   }
 
   auto Camera::get_viewMat() noexcept -> se::mat4 {

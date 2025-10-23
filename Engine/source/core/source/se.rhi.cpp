@@ -378,6 +378,8 @@ namespace rhi {
         VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME);
       context->get_vk_device_extensions().emplace_back(
         VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME);
+      context->get_vk_device_extensions().emplace_back(
+        VK_KHR_COMPUTE_SHADER_DERIVATIVES_EXTENSION_NAME);
 
       context->get_vk_device_extensions().emplace_back(
         VK_NV_COMPUTE_SHADER_DERIVATIVES_EXTENSION_NAME);
@@ -2232,8 +2234,8 @@ namespace rhi {
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
     void** pFeature2Tail = &(features2.pNext);
     // sub: compute derivative
-    VkPhysicalDeviceComputeShaderDerivativesFeaturesNV compute_derivative_physics_features{
-      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_COMPUTE_SHADER_DERIVATIVES_FEATURES_NV };
+    VkPhysicalDeviceComputeShaderDerivativesFeaturesKHR compute_derivative_physics_features{
+      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_COMPUTE_SHADER_DERIVATIVES_FEATURES_KHR };
     compute_derivative_physics_features.computeDerivativeGroupLinear = VK_TRUE;
     compute_derivative_physics_features.computeDerivativeGroupQuads = VK_TRUE;
     *pFeature2Tail = &compute_derivative_physics_features;
