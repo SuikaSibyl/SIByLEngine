@@ -1965,72 +1965,135 @@ namespace gfx {
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(2, 2));
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(4, 2));
 
-    for (size_t i = 0; i < m_primitives.size(); ++i) {
-      auto& mesh = m_primitives[i];
-      ImGui::PushID(static_cast<int>(i));
+    // If is customPRIMITIVE
+    if(m_customPrimitives.size()>0) {
+      for (size_t i = 0; i < m_customPrimitives.size(); ++i) {
+        auto& mesh = m_customPrimitives[i];
+        ImGui::PushID(static_cast<int>(i));
 
-      // Collapsible header (primary info)
-      bool open = ImGui::CollapsingHeader(
-        ("Mesh " + std::to_string(i) +
-          " | Vertices: " + std::to_string(mesh.numVertex) +
-          " | Material: " + std::to_string(1)).c_str(),
-        ImGuiTreeNodeFlags_DefaultOpen
-      );
+        // Collapsible header (primary info)
+        bool open = ImGui::CollapsingHeader(
+          ("Mesh " + std::to_string(i) +
+            " | Type: " + std::to_string(mesh.primitiveType) +
+            " | Material: " + std::to_string(1)).c_str(),
+          ImGuiTreeNodeFlags_DefaultOpen
+        );
 
-      // Quick actions (buttons aligned to the right)
-      ImGui::SameLine(ImGui::GetWindowWidth() - 100); // Right-align
-      if (ImGui::SmallButton("Focus")) { /* Camera logic */ }
-      ImGui::SameLine();
-      if (ImGui::SmallButton("Delete")) { /* Mark for deletion */ }
+        // Quick actions (buttons aligned to the right)
+        ImGui::SameLine(ImGui::GetWindowWidth() - 100); // Right-align
+        if (ImGui::SmallButton("Focus")) { /* Camera logic */ }
+        ImGui::SameLine();
+        if (ImGui::SmallButton("Delete")) { /* Mark for deletion */ }
 
-      // Expanded details
-      if (open) {
-        ImGui::Indent();
-
-        // Two-column layout for properties
-        ImGui::Columns(2, "MeshDetails", false);
-        ImGui::SetColumnWidth(0, 120); // Fixed width for labels
-
-        ImGui::Text("Offset"); ImGui::NextColumn();
-        ImGui::Text("%zu", mesh.offset); ImGui::NextColumn();
-
-        ImGui::Text("Size"); ImGui::NextColumn();
-        ImGui::Text("%zu bytes", mesh.size); ImGui::NextColumn();
-
-        ImGui::Text("Base Vertex"); ImGui::NextColumn();
-        ImGui::Text("%zu", mesh.baseVertex); ImGui::NextColumn();
-
-        ImGui::Text("Bounds Min"); ImGui::NextColumn();
-        ImGui::Text("(%.2f, %.2f, %.2f)", mesh.min.x, mesh.min.y, mesh.min.z); ImGui::NextColumn();
-
-        ImGui::Text("Bounds Max"); ImGui::NextColumn();
-        ImGui::Text("(%.2f, %.2f, %.2f)", mesh.max.x, mesh.max.y, mesh.max.z); ImGui::NextColumn();
-
-        ImGui::Text("Material"); ImGui::NextColumn();
-        bool open_mat = ImGui::TreeNodeEx("##MyRightArrow", 
-          ImGuiTreeNodeFlags_Framed | ImGuiTreeNodeFlags_NoTreePushOnOpen | 
-          ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_DefaultOpen);
-        // Content (only if open)
-        if (ImGui::IsItemClicked()) {
-          // Toggle open state via click
-          ImGui::SetNextItemOpen(!open_mat, ImGuiCond_Always);
-        }
-
-        ImGui::Columns(1); // Reset
-
-        if (open_mat) {
+        // Expanded details
+        if (open) {
           ImGui::Indent();
-          if (mesh.material.get())
-            mesh.material->draw_gui(nullptr);
+
+          // Two-column layout for properties
+          ImGui::Columns(2, "MeshDetails", false);
+          ImGui::SetColumnWidth(0, 120); // Fixed width for labels
+          
+          ImGui::Text("Bounds Min"); ImGui::NextColumn();
+          ImGui::Text("(%.2f, %.2f, %.2f)", mesh.min.x, mesh.min.y, mesh.min.z); ImGui::NextColumn();
+
+          ImGui::Text("Bounds Max"); ImGui::NextColumn();
+          ImGui::Text("(%.2f, %.2f, %.2f)", mesh.max.x, mesh.max.y, mesh.max.z); ImGui::NextColumn();
+
+          ImGui::Text("Material"); ImGui::NextColumn();
+          bool open_mat = ImGui::TreeNodeEx("##MyRightArrow", 
+            ImGuiTreeNodeFlags_Framed | ImGuiTreeNodeFlags_NoTreePushOnOpen | 
+            ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_DefaultOpen);
+          // Content (only if open)
+          if (ImGui::IsItemClicked()) {
+            // Toggle open state via click
+            ImGui::SetNextItemOpen(!open_mat, ImGuiCond_Always);
+          }
+
+          ImGui::Columns(1); // Reset
+
+          if (open_mat) {
+            ImGui::Indent();
+            if (mesh.material.get())
+              mesh.material->draw_gui(nullptr);
+            ImGui::Unindent();
+          }
+
           ImGui::Unindent();
         }
 
-        ImGui::Unindent();
+
+        ImGui::PopID();
+        ImGui::Separator(); // Visual spacing between items
       }
+    }
+    else {
+      for (size_t i = 0; i < m_primitives.size(); ++i) {
+        auto& mesh = m_primitives[i];
+        ImGui::PushID(static_cast<int>(i));
+
+        // Collapsible header (primary info)
+        bool open = ImGui::CollapsingHeader(
+          ("Mesh " + std::to_string(i) +
+            " | Vertices: " + std::to_string(mesh.numVertex) +
+            " | Material: " + std::to_string(1)).c_str(),
+          ImGuiTreeNodeFlags_DefaultOpen
+        );
+
+        // Quick actions (buttons aligned to the right)
+        ImGui::SameLine(ImGui::GetWindowWidth() - 100); // Right-align
+        if (ImGui::SmallButton("Focus")) { /* Camera logic */ }
+        ImGui::SameLine();
+        if (ImGui::SmallButton("Delete")) { /* Mark for deletion */ }
+
+        // Expanded details
+        if (open) {
+          ImGui::Indent();
+
+          // Two-column layout for properties
+          ImGui::Columns(2, "MeshDetails", false);
+          ImGui::SetColumnWidth(0, 120); // Fixed width for labels
+
+          ImGui::Text("Offset"); ImGui::NextColumn();
+          ImGui::Text("%zu", mesh.offset); ImGui::NextColumn();
+
+          ImGui::Text("Size"); ImGui::NextColumn();
+          ImGui::Text("%zu bytes", mesh.size); ImGui::NextColumn();
+
+          ImGui::Text("Base Vertex"); ImGui::NextColumn();
+          ImGui::Text("%zu", mesh.baseVertex); ImGui::NextColumn();
+
+          ImGui::Text("Bounds Min"); ImGui::NextColumn();
+          ImGui::Text("(%.2f, %.2f, %.2f)", mesh.min.x, mesh.min.y, mesh.min.z); ImGui::NextColumn();
+
+          ImGui::Text("Bounds Max"); ImGui::NextColumn();
+          ImGui::Text("(%.2f, %.2f, %.2f)", mesh.max.x, mesh.max.y, mesh.max.z); ImGui::NextColumn();
+
+          ImGui::Text("Material"); ImGui::NextColumn();
+          bool open_mat = ImGui::TreeNodeEx("##MyRightArrow", 
+            ImGuiTreeNodeFlags_Framed | ImGuiTreeNodeFlags_NoTreePushOnOpen | 
+            ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_DefaultOpen);
+          // Content (only if open)
+          if (ImGui::IsItemClicked()) {
+            // Toggle open state via click
+            ImGui::SetNextItemOpen(!open_mat, ImGuiCond_Always);
+          }
+
+          ImGui::Columns(1); // Reset
+
+          if (open_mat) {
+            ImGui::Indent();
+            if (mesh.material.get())
+              mesh.material->draw_gui(nullptr);
+            ImGui::Unindent();
+          }
+
+          ImGui::Unindent();
+        }
 
 
-      ImGui::PopID();
-      ImGui::Separator(); // Visual spacing between items
+        ImGui::PopID();
+        ImGui::Separator(); // Visual spacing between items
+      }
     }
 
     ImGui::PopStyleVar(2);

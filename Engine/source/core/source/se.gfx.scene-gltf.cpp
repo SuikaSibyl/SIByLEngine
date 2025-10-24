@@ -176,6 +176,12 @@ namespace se {
         if (meshPrimitive.material != -1) {
           auto const& gltf_material = model->materials[meshPrimitive.material];
           sePrimitive.material = loadGLTFMaterial(&gltf_material, model, env, scene, defaultMeshLoadConfig);
+          se::vec3 emission = sePrimitive.material->m_packet.vec4Data1.xyz();
+          if (emission.r > 0 || emission.g > 0 || emission.b > 0) {
+            auto& light_component = gfxNode.add_component<Light>();
+            //light_component.primitives.push_back(0);
+            light_component.light.light_type = LightTypeEnum::MESH_PRIMITIVE;
+          }
         }
         else {
           sePrimitive.material = GFXContext::create_material_empty();
