@@ -32,11 +32,11 @@ struct MinimalHit {
     float2  barycentrics;
 };
 
-MinimalHit intersection_ray_query_minimal(Ray ray) {
+MinimalHit intersection_ray_query_minimal(Ray ray, uint bvhID = 0) {
     MinimalHit payload;
     payload.primitiveType = -1;
     RayQuery<RAY_FLAG_NONE> q;
-    q.TraceRayInline(se_scene_tlas, 0, 0xff, ray.to_desc());
+    q.TraceRayInline(se_scene_tlas[bvhID], 0, 0xff, ray.to_desc());
     while (q.Proceed()) {
         switch (q.CandidateType()) {
         case CANDIDATE_NON_OPAQUE_TRIANGLE: {
@@ -107,11 +107,11 @@ MinimalHit intersection_ray_query_minimal(Ray ray) {
     return payload;
 }
 
-IntersectionPayload intersection_ray_query(Ray ray) {
+IntersectionPayload intersection_ray_query(Ray ray, uint bvhID = 0) {
     IntersectionPayload payload;
     payload.hit.set_hit(false);
     RayQuery<RAY_FLAG_NONE> q;
-    q.TraceRayInline(se_scene_tlas, 0, 0xff, ray.to_desc());
+    q.TraceRayInline(se_scene_tlas[bvhID], 0, 0xff, ray.to_desc());
     while (q.Proceed()) {
         switch (q.CandidateType()) {
         case CANDIDATE_NON_OPAQUE_TRIANGLE: {
@@ -199,9 +199,9 @@ IntersectionPayload intersection_ray_query(Ray ray) {
     return payload;
 }
 
-bool visibility_ray_query(in const Ray ray) {
+bool visibility_ray_query(in const Ray ray, uint bvhID = 0) {
     RayQuery<RAY_FLAG_NONE> q;
-    q.TraceRayInline(se_scene_tlas, 0, 0xff, ray.to_desc());
+    q.TraceRayInline(se_scene_tlas[bvhID], 0, 0xff, ray.to_desc());
     while (q.Proceed()) {
         switch (q.CandidateType()) {
         case CANDIDATE_NON_OPAQUE_TRIANGLE: {

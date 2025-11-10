@@ -10,7 +10,11 @@ struct SampledGrid {
     int offset;
     bool valid;
     
-    __init() { valid = false; }
+    __init() { 
+        valid = false; 
+        nx = ny = nz = 0;
+        offset = 0;
+    }
 
     float look_up(float3 p) {
         // Compute voxel coordinates and offsets for p
@@ -47,7 +51,11 @@ struct RGBSampledGrid {
     int offset;
     bool valid;
 
-    __init() { valid = false; }
+    __init() { 
+        valid = false; 
+        nx = ny = nz = 0;
+        offset = 0;
+    }
 
     float3 look_up(float3 p) {
         // Compute voxel coordinates and offsets for p

@@ -1,5 +1,6 @@
 #ifndef _SRENDERER_SCENE_BINDINGS_
 #define _SRENDERER_SCENE_BINDINGS_
+#define SRENDERER_SCENE_TLAS_COUNT 1
 
 #include "common/ray.slang"
 #include "common/math.slang"
@@ -9,22 +10,23 @@
 struct IndexBuffer { ConstBufferPointer<uint> ref; };
 struct PositionBuffer { ConstBufferPointer<float> ref; };
 struct VertexBuffer { ConstBufferPointer<float> ref; };
+struct LightBVHNodeBuffer { ConstBufferPointer<LightBVHNode> ref; };
+struct LightBVHTrailBuffer { ConstBufferPointer<uint32_t> ref; };
 
-RWStructuredBuffer<IndexBuffer>     se_index_buffers;
-RWStructuredBuffer<PositionBuffer>  se_position_buffers;
-RWStructuredBuffer<VertexBuffer>    se_vertex_buffers;
-RWStructuredBuffer<CameraData>      se_camera_buffers;
-RWStructuredBuffer<GeometryData>    se_geometry_buffers;
-RWStructuredBuffer<MaterialData>    se_material_buffers;
-RWStructuredBuffer<LightData>       se_light_buffer;
-RWStructuredBuffer<SceneData>       se_scene_buffer;
-RWStructuredBuffer<LightBVHNode>    se_lightbvh_nodes;
-RWStructuredBuffer<uint32_t>        se_lightbvh_trails;
-RWStructuredBuffer<MediumData>      se_medium_buffer;
-RWStructuredBuffer<float>           se_medium_grid_buffer;
-
-Sampler2D                           se_textures[];
-RaytracingAccelerationStructure     se_scene_tlas;
+RWStructuredBuffer<IndexBuffer>         se_index_buffers;
+RWStructuredBuffer<PositionBuffer>      se_position_buffers;
+RWStructuredBuffer<VertexBuffer>        se_vertex_buffers;
+RWStructuredBuffer<CameraData>          se_camera_buffers;
+RWStructuredBuffer<GeometryData>        se_geometry_buffers;
+RWStructuredBuffer<MaterialData>        se_material_buffers;
+RWStructuredBuffer<LightData>           se_light_buffer;
+RWStructuredBuffer<SceneData>           se_scene_buffer;
+RWStructuredBuffer<LightBVHNodeBuffer>  se_lightbvh_nodes;
+RWStructuredBuffer<LightBVHTrailBuffer> se_lightbvh_trails;
+RWStructuredBuffer<MediumData>          se_medium_buffer;
+RWStructuredBuffer<float>               se_medium_grid_buffer;
+Sampler2D                               se_textures[];
+RaytracingAccelerationStructure         se_scene_tlas[SRENDERER_SCENE_TLAS_COUNT];
 
 float3 scene_read_position(int meshID, int positionID) { 
     return float3(
@@ -48,6 +50,10 @@ Optional<MaterialData> scene_read_material(GeometryData geometry) {
 }
 // Read a camera info from the camera buffer.
 MediumData scene_read_medium(int mediumID) { return se_medium_buffer[mediumID]; }
+// Read a LightBVHNode from the light BVH node buffer.
+LightBVHNode scene_read_lbvh_node(int lbvhID, int nodeID) { return se_lightbvh_nodes[lbvhID].ref[nodeID]; }
+// Read a LightBVHTrail from the light BVH trail buffer.
+uint32_t scene_read_lbvh_trail(int lbvhID, int trailID) { return se_lightbvh_trails[lbvhID].ref[trailID]; }
 
 // Read a vertex indices from the index buffer of a mesh.
 int3 scene_read_triangle_indices(const GeometryData data, int triangleIndex) {

@@ -182,6 +182,7 @@ namespace rdg {
     std::unordered_map<std::string, void*> m_ptrs;
     std::unordered_map<std::string, se::mat4> m_mat4s;
     std::optional<gfx::SceneHandle> m_scene;
+    std::optional<gfx::SceneBatchHandle> m_sceneBatch;
 
     //auto setDelegate(
     //  std::string const& name,
@@ -215,7 +216,9 @@ namespace rdg {
     //auto getMat4(std::string const& name) const noexcept -> se::mat4;
 
     auto set_scene(gfx::SceneHandle) noexcept -> void;
+    auto set_scene_batch(gfx::SceneBatchHandle) noexcept -> void;
     auto get_scene() const noexcept -> gfx::SceneHandle;
+    auto get_scene_batch() const noexcept -> gfx::SceneBatchHandle;
   };
 
   struct Pass {
@@ -255,6 +258,8 @@ namespace rdg {
       rhi::BindingResource const& resource) noexcept -> void;
     // Direct update binding of a scene
     auto update_binding_scene(RenderContext* context, gfx::SceneHandle scene) noexcept -> void;
+    // Direct update binding of a scene batch
+    auto update_binding_scene_batch(RenderContext* context, gfx::SceneBatchHandle sceneBatch) noexcept -> void;
 
     //
     auto update_bindings(
@@ -312,6 +317,7 @@ namespace rdg {
     virtual auto generate_marker() noexcept -> void;
     virtual auto init(gfx::ShaderModule* comp) noexcept -> void;
     virtual auto init(std::string const& comp) noexcept -> void;
+    virtual auto init(std::string const& comp, std::vector<std::pair<char const*, char const*>> const& macros) noexcept -> void;
   };
 
   struct DAG {

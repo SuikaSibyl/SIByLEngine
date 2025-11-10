@@ -35,12 +35,29 @@ namespace gfx {
 
   auto Scene::update_gpu_scene() noexcept -> void {
     update_transform();
-    update_gpu_meshes();
-    update_gpu_camera();
-    update_gpu_lights();
-    update_gpu_medium();
-    update_gpu_bvh();
+    
+    update_gpu_meshes(&m_gpuScene);
+    m_gpuScene.positionBuffer.m_buffer->host_to_device();
+    m_gpuScene.indexBuffer.m_buffer->host_to_device();
+    m_gpuScene.vertexBuffer.m_buffer->host_to_device();
+    m_gpuScene.materialBuffer.m_buffer->host_to_device();
+    
+    update_gpu_camera(&m_gpuScene);
+    m_gpuScene.cameraBuffer.m_buffer->host_to_device();
 
+    update_gpu_lights(&m_gpuScene);
+    m_gpuScene.lightBuffer.m_buffer->host_to_device();
+    m_gpuScene.sceneDataList.m_buffer->host_to_device();
+    m_gpuScene.lbvhTreeBuffer.m_buffer->host_to_device();
+    m_gpuScene.lbvhTrailBuffer.m_buffer->host_to_device();
+     
+    update_gpu_medium(&m_gpuScene);
+    m_gpuScene.mediumPool.medium_buffer.m_buffer->host_to_device();
+    m_gpuScene.mediumPool.grid_storage_buffer->host_to_device();
+
+    update_gpu_bvh(&m_gpuScene);
+
+    // set all transform dirty flag to false
     auto node_view = m_registry.view<Transform>();
     for (auto [entity, _transform] : node_view.each()) {
       _transform.m_dirtyToGPU = false;
@@ -49,7 +66,8 @@ namespace gfx {
     m_gpuScene.geometryBuffer.m_buffer->host_to_device();
   }
 
-  auto Scene::update_gpu_meshes() noexcept -> void {
+  auto Scene::update_gpu_meshes(GPUScene* gpu_scene) noexcept -> void {
+    // Iterate through all nodes with Transform and MeshRenderer components
     auto node_view = m_registry.view<Transform, MeshRenderer>();
     for (auto [entity, transform, mesh] : node_view.each()) {
       // If the mesh resource itself is dirty, we update the reference to the mesh
@@ -57,13 +75,13 @@ namespace gfx {
         uint64_t vertex_address = mesh.m_mesh->m_vertexBuffer->m_buffer->get_device_address();
         uint64_t pos_address = mesh.m_mesh->m_positionBuffer->m_buffer->get_device_address();
         uint64_t index_address = mesh.m_mesh->m_indexBuffer->m_buffer->get_device_address();
-
-        auto iter = m_gpuScene.meshList.find(mesh.m_mesh.get());
-        if (iter == m_gpuScene.meshList.end()) {
-          int32_t index = m_gpuScene.positionBuffer.insert(pos_address);
-          m_gpuScene.vertexBuffer.insert(vertex_address);
-          m_gpuScene.indexBuffer.insert(index_address);
-          m_gpuScene.meshList[mesh.m_mesh.get()] = IndexInfo{ index, 0 };
+        // Register the mesh if not already in the gpu scene
+        auto iter = gpu_scene->meshList.find(mesh.m_mesh.get());
+        if (iter == gpu_scene->meshList.end()) {
+          int32_t index = gpu_scene->positionBuffer.insert(pos_address);
+          gpu_scene->vertexBuffer.insert(vertex_address);
+          gpu_scene->indexBuffer.insert(index_address);
+          gpu_scene->meshList[mesh.m_mesh.get()] = IndexInfo{ index, 0 };
         }
         else {
           se::error("todo :: a mesh is dirty after first register");
@@ -72,43 +90,43 @@ namespace gfx {
       }
 
       // The mesh get a uniform ID in the mesh-list
-      int16_t meshID = (int16_t)m_gpuScene.meshList[mesh.m_mesh.get()].assignedIndex;
+      int16_t meshID = (int16_t)gpu_scene->meshList[mesh.m_mesh.get()].assignedIndex;
 
       // After we have the mesh resource ready,
       // we take care of the material resource
       for (auto& primitive : mesh.m_mesh->m_customPrimitives) {
         MaterialHandle mat = primitive.material;
-        auto iter = m_gpuScene.materialList.find(mat.get());
-        if (iter == m_gpuScene.materialList.end()) {
+        auto iter = gpu_scene->materialList.find(mat.get());
+        if (iter == gpu_scene->materialList.end()) {
           MaterialInterpreterManager::init(mat.get(), mat->m_packet.bxdfType);
-          int32_t index = m_gpuScene.materialBuffer.insert(mat->m_packet);
-          m_gpuScene.materialList[mat.get()] = IndexInfo{ index, 0 };
+          int32_t index = gpu_scene->materialBuffer.insert(mat->m_packet);
+          gpu_scene->materialList[mat.get()] = IndexInfo{ index, 0 };
           mat->m_dirtyToGPU = false;
         }
         else if (mat->m_dirtyToGPU == true) {
           MaterialInterpreterManager::init(mat.get(), mat->m_packet.bxdfType);
-          m_gpuScene.materialBuffer.update(iter->second.assignedIndex, mat->m_packet);
+          gpu_scene->materialBuffer.update(iter->second.assignedIndex, mat->m_packet);
           mat->m_dirtyToGPU = false;
         }
       }
       for (auto& primitive : mesh.m_mesh->m_primitives) {
         MaterialHandle mat = primitive.material;
         if (!mat.get()) continue;
-        auto iter = m_gpuScene.materialList.find(mat.get());
-        if (iter == m_gpuScene.materialList.end()) {
+        auto iter = gpu_scene->materialList.find(mat.get());
+        if (iter == gpu_scene->materialList.end()) {
           MaterialInterpreterManager::init(mat.get(), mat->m_packet.bxdfType);
           if (mat->m_basecolorTex.get()) {
-            mat->m_packet.baseTex = m_gpuScene.imagePool.try_fetch_index(mat->m_basecolorTex);
+            mat->m_packet.baseTex = gpu_scene->imagePool.try_fetch_index(mat->m_basecolorTex);
           }
           else mat->m_packet.baseTex = -1;
 
-          int32_t index = m_gpuScene.materialBuffer.insert(mat->m_packet);
-          m_gpuScene.materialList[mat.get()] = IndexInfo{ index, 0 };
+          int32_t index = gpu_scene->materialBuffer.insert(mat->m_packet);
+          gpu_scene->materialList[mat.get()] = IndexInfo{ index, 0 };
           mat->m_dirtyToGPU = false;
         }
         else if (mat->m_dirtyToGPU == true) {
           MaterialInterpreterManager::init(mat.get(), mat->m_packet.bxdfType);
-          m_gpuScene.materialBuffer.update(iter->second.assignedIndex, mat->m_packet);
+          gpu_scene->materialBuffer.update(iter->second.assignedIndex, mat->m_packet);
           mat->m_dirtyToGPU = false;
         }
       }
@@ -116,7 +134,7 @@ namespace gfx {
       // Then we update the geometry,
       if (transform.is_dirty_to_gpu() || mesh.is_dirty_to_gpu()) {
 
-        auto iter = m_gpuScene.geometryList.find(entity);
+        auto iter = gpu_scene->geometryList.find(entity);
 
         std::vector<IndexInfo> info_set;
 
@@ -132,23 +150,23 @@ namespace gfx {
             geometry.geometryTransformInverse = se::inverse(transform.global);
             geometry.oddNegativeScaling = transform.oddScaling;
             geometry.materialID = primitive.material.get()
-              ? m_gpuScene.materialList[primitive.material.get()].assignedIndex : -1;            geometry.primitiveType = primitive.primitiveType;
+              ? gpu_scene->materialList[primitive.material.get()].assignedIndex : -1;            geometry.primitiveType = primitive.primitiveType;
             geometry.lightID = -1;
             geometry.mediumIDInterior = -1;
             geometry.mediumIDExterior = -1;
             if (primitive.exterior.get())
-              geometry.mediumIDExterior = m_gpuScene.mediumPool.try_fetch_index(primitive.exterior);
+              geometry.mediumIDExterior = gpu_scene->mediumPool.try_fetch_index(primitive.exterior);
             if (primitive.interior.get())
-              geometry.mediumIDInterior = m_gpuScene.mediumPool.try_fetch_index(primitive.interior);
+              geometry.mediumIDInterior = gpu_scene->mediumPool.try_fetch_index(primitive.interior);
 
-            if (iter == m_gpuScene.geometryList.end()) {
+            if (iter == gpu_scene->geometryList.end()) {
               IndexInfo info;
-              info.assignedIndex = m_gpuScene.geometryBuffer.insert(geometry);
+              info.assignedIndex = gpu_scene->geometryBuffer.insert(geometry);
               info.heartBeat = 0;
               info_set.emplace_back(info);
             }
             else {
-              m_gpuScene.geometryBuffer.update(
+              gpu_scene->geometryBuffer.update(
                 iter->second[index_subprimitive].assignedIndex,
                 geometry
               );
@@ -167,25 +185,25 @@ namespace gfx {
             geometry.geometryTransformInverse = se::inverse(transform.global);
             geometry.oddNegativeScaling = transform.oddScaling;
             geometry.materialID = primitive.material.get()
-              ? m_gpuScene.materialList[primitive.material.get()].assignedIndex : -1;
+              ? gpu_scene->materialList[primitive.material.get()].assignedIndex : -1;
             geometry.primitiveType = 0;
             geometry.meshID = meshID;
             geometry.lightID = -1;
             geometry.mediumIDInterior = -1;
             geometry.mediumIDExterior = -1;
             if (primitive.exterior.get())
-              geometry.mediumIDExterior = m_gpuScene.mediumPool.try_fetch_index(primitive.exterior);
+              geometry.mediumIDExterior = gpu_scene->mediumPool.try_fetch_index(primitive.exterior);
             if (primitive.interior.get())
-              geometry.mediumIDInterior = m_gpuScene.mediumPool.try_fetch_index(primitive.interior);
+              geometry.mediumIDInterior = gpu_scene->mediumPool.try_fetch_index(primitive.interior);
 
-            if (iter == m_gpuScene.geometryList.end()) {
+            if (iter == gpu_scene->geometryList.end()) {
               IndexInfo info;
-              info.assignedIndex = m_gpuScene.geometryBuffer.insert(geometry);
+              info.assignedIndex = gpu_scene->geometryBuffer.insert(geometry);
               info.heartBeat = 0;
               info_set.emplace_back(info);
             }
             else {
-              m_gpuScene.geometryBuffer.update(
+              gpu_scene->geometryBuffer.update(
                 iter->second[index_subprimitive].assignedIndex,
                 geometry
               );
@@ -194,8 +212,8 @@ namespace gfx {
           }
         }
 
-        if (iter == m_gpuScene.geometryList.end()) {
-          m_gpuScene.geometryList[entity] = info_set;
+        if (iter == gpu_scene->geometryList.end()) {
+          gpu_scene->geometryList[entity] = info_set;
         }
 
         mesh.m_dirtyToGPU = false;
@@ -204,7 +222,7 @@ namespace gfx {
       //for (auto& sub : _property.m_mesh->m_primitives) {
 
       //}
-      //m_gpuScene.meshList.find();
+      //gpu_scene->meshList.find();
 
       //size_t node_index = data.nodes.size();
       //data.nodes.emplace(entity, node_index);
@@ -212,14 +230,9 @@ namespace gfx {
       //node.name = _property.name;
       //data.model->nodes.emplace_back(node);
     }
-
-    m_gpuScene.positionBuffer.m_buffer->host_to_device();
-    m_gpuScene.indexBuffer.m_buffer->host_to_device();
-    m_gpuScene.vertexBuffer.m_buffer->host_to_device();
-    m_gpuScene.materialBuffer.m_buffer->host_to_device();
   }
 
-  auto Scene::update_gpu_camera() noexcept -> void {
+  auto Scene::update_gpu_camera(GPUScene* gpu_scene) noexcept -> void {
     auto node_view = m_registry.view<gfx::Transform, Camera>();
     for (auto [entity, transform, camera] : node_view.each()) {
       auto texture_displayed = Singleton<editor::EditorContext>::instance()->m_viewportTexture;
@@ -243,24 +256,24 @@ namespace gfx {
         CameraData camData = CameraData(camera, transform);
 
         if (camera.medium.get() != nullptr) {
-          camData.mediumID = m_gpuScene.mediumPool.try_fetch_index(camera.medium);
+          camData.mediumID = gpu_scene->mediumPool.try_fetch_index(camera.medium);
         }
 
         // move to gpu buffer
-        auto find = m_gpuScene.cameraList.find(entity);
-        if (find == m_gpuScene.cameraList.end()) {
-          int32_t index = m_gpuScene.cameraBuffer.insert(camData);
-          m_gpuScene.cameraList[entity] = { index, 0 };
+        SceneEntity key{ this, entity };
+        auto find = gpu_scene->cameraList.find(key);
+        if (find == gpu_scene->cameraList.end()) {
+          int32_t index = gpu_scene->cameraBuffer.insert(camData);
+          gpu_scene->cameraList[key] = { index, 0 };
         }
-        else m_gpuScene.cameraBuffer.m_buffer->copy_to_host(find->second.assignedIndex, camData);
+        else gpu_scene->cameraBuffer.m_buffer->copy_to_host(find->second.assignedIndex, camData);
         // camera is no longer dirty
         camera.m_dirtyToGPU = false;
       }
     }
-    m_gpuScene.cameraBuffer.m_buffer->host_to_device();
   }
 
-  auto Scene::update_gpu_medium() noexcept -> void {
+  auto Scene::update_gpu_medium(GPUScene* gpu_scene) noexcept -> void {
     //for (auto& pair : m_gpuScene.mediumPool.medium_loc_index) {
     //  if (pair.second.second->isDirty) {
     //    pair.second.second->isDirty = false;
@@ -270,27 +283,25 @@ namespace gfx {
     //    gpuScene.medium_buffer->host_stamp++;
     //  }
     //}
-    m_gpuScene.mediumPool.medium_buffer.m_buffer->host_to_device();
-    m_gpuScene.mediumPool.grid_storage_buffer->host_to_device();
   }
 
-  auto Scene::update_gpu_lights() noexcept -> void {
+  auto Scene::update_gpu_lights(GPUScene* gpu_scene) noexcept -> void {
     auto node_light_view = m_registry.view<gfx::Transform, Light>();
     bool lights_dirty = false;
 
     for (auto [entity, transform, light] : node_light_view.each()) {
-
+      // Skip if neither transform nor light is dirty
       if ((!transform.is_dirty_to_gpu()) && (!light.is_dirty_to_gpu())) continue;
 
       switch (light.light.light_type) {
       case LightTypeEnum::MESH_PRIMITIVE: {
         MeshHandle& mesh = m_registry.get<MeshRenderer>(entity).m_mesh;
-        std::vector<IndexInfo>& indices = m_gpuScene.geometryList[entity];
+        std::vector<IndexInfo>& indices = gpu_scene->geometryList[entity];
         // custom mesh primitives
         if (mesh->m_customPrimitives.size() > 0) {
           for (size_t i = 0; i < mesh->m_customPrimitives.size(); ++i) {
             int32_t geometry_index = indices[i].assignedIndex;
-            GeometryDrawData& geometry = m_gpuScene.geometryBuffer[geometry_index];
+            GeometryDrawData& geometry = gpu_scene->geometryBuffer[geometry_index];
 
             LightData packet;
             const vec3 emissive = mesh->m_customPrimitives[i].material->m_packet.vec4Data1.xyz();
@@ -340,16 +351,16 @@ namespace gfx {
 
             }
 
-            int light_index = m_gpuScene.lightBuffer.insert(packet);
+            int light_index = gpu_scene->lightBuffer.insert(packet);
             geometry.lightID = light_index;
-            m_gpuScene.lightList[entity].push_back({ light_index });
+            gpu_scene->lightList[entity].push_back({ light_index });
           }
         }
         // triangle mesh primitives
         else {
           for (size_t i = 0; i < mesh->m_primitives.size(); ++i) {
             int32_t geometry_index = indices[i].assignedIndex;
-            GeometryDrawData& geometry = m_gpuScene.geometryBuffer[geometry_index];
+            GeometryDrawData& geometry = gpu_scene->geometryBuffer[geometry_index];
             std::vector<LightData> packets(geometry.indexSize / 3);
             const vec3 emissive = mesh->m_primitives[i].material->m_packet.vec4Data1.xyz();
             const vec3 yuv = {
@@ -393,9 +404,9 @@ namespace gfx {
               packets[j].floatvec_2 = { bound.pMax, n.z };
             }
 
-            int light_index = m_gpuScene.lightBuffer.insert_consecutive(packets);
+            int light_index = gpu_scene->lightBuffer.insert_consecutive(packets);
             geometry.lightID = light_index;
-            m_gpuScene.lightList[entity].push_back({ light_index, 0, int32_t(packets.size()) });
+            gpu_scene->lightList[entity].push_back({ light_index, 0, int32_t(packets.size()) });
           }
         }
         break;
@@ -410,14 +421,41 @@ namespace gfx {
     if (lights_dirty) {
       update_gpu_lightbvh();
 
-      m_gpuScene.sceneInfo.data->nondistant_light_count = m_gpuScene.lightBuffer.m_size;
-      m_gpuScene.sceneInfo.data->light_bounds_min = m_gpuScene.lightSampler.allLightBounds.pMin;
-      m_gpuScene.sceneInfo.data->light_bounds_max = m_gpuScene.lightSampler.allLightBounds.pMax;
+      int32_t scene_index = -1;
+      auto iter = gpu_scene->m_sceneIDMap.find(this);
+      if (iter == gpu_scene->m_sceneIDMap.end()) {
+        // upload light information to scene data
+        Scene::GPUScene::SceneData data;
+        data.nondistant_light_count = gpu_scene->lightBuffer.m_size;
+        data.light_bounds_min = m_perSceneGPUInfo.lightSampler.allLightBounds.pMin;
+        data.light_bounds_max = m_perSceneGPUInfo.lightSampler.allLightBounds.pMax;
+        // push data to gpu buffer
+        scene_index = gpu_scene->sceneDataList.insert(data);
+        gpu_scene->m_sceneIDMap[this] = scene_index;
+      }
+      else {
+        // fetch scene data and update
+        scene_index = iter->second;
+        Scene::GPUScene::SceneData& data = gpu_scene->sceneDataList[scene_index];
+        data.nondistant_light_count = gpu_scene->lightBuffer.m_size;
+        data.light_bounds_min = m_perSceneGPUInfo.lightSampler.allLightBounds.pMin;
+        data.light_bounds_max = m_perSceneGPUInfo.lightSampler.allLightBounds.pMax;
+      }
+
+      // upload lbvh to gpu_scene
+      uint64_t tree_address = 0;
+      if (m_perSceneGPUInfo.lightSampler.trailBuffer->m_buffer.get())
+        tree_address = m_perSceneGPUInfo.lightSampler.treeBuffer->m_buffer->get_device_address();
+      uint64_t trail_address = 0;
+      if (m_perSceneGPUInfo.lightSampler.trailBuffer->m_buffer.get())
+        trail_address = m_perSceneGPUInfo.lightSampler.trailBuffer->m_buffer->get_device_address();
+      
+      gpu_scene->lbvhTreeBuffer.set_or_update(scene_index, tree_address);
+      gpu_scene->lbvhTrailBuffer.set_or_update(scene_index, trail_address);
     }
-    m_gpuScene.lightBuffer.m_buffer->host_to_device();
   }
 
-  auto Scene::update_gpu_bvh() noexcept -> void {
+  auto Scene::update_gpu_bvh(GPUScene* gpu_scene) noexcept -> void {
     if (!(gfx::GFXContext::device()->from_which_adapter()->from_which_context()
       ->get_context_extensions_flags() & rhi::ContextExtensionEnum::RAY_TRACING))
       return;
@@ -465,8 +503,8 @@ namespace gfx {
         }
       }
 
-      auto iter = m_gpuScene.tlas.instanceList.find(entity);
-      if (iter == m_gpuScene.tlas.instanceList.end()) {
+      auto iter = m_perSceneGPUInfo.tlas.instanceList.find(entity);
+      if (iter == m_perSceneGPUInfo.tlas.instanceList.end()) {
         if (mesh.m_mesh->m_customPrimitives.size() > 0) {
           for (auto& primitive : mesh.m_mesh->m_customPrimitives) {
             should_rebuilt_tlas = true;
@@ -477,9 +515,9 @@ namespace gfx {
             instance.instanceCustomIndex = primitive.primitiveType; // geometry_start
             instance.instanceShaderBindingTableRecordOffset = 0;
 
-            int32_t index = m_gpuScene.tlas.desc.instances.size();
-            m_gpuScene.tlas.desc.instances.push_back(instance);
-            m_gpuScene.tlas.instanceList[entity].push_back(IndexInfo{ index });
+            int32_t index = m_perSceneGPUInfo.tlas.desc.instances.size();
+            m_perSceneGPUInfo.tlas.desc.instances.push_back(instance);
+            m_perSceneGPUInfo.tlas.instanceList[entity].push_back(IndexInfo{ index });
           }
         }
         else {
@@ -492,9 +530,9 @@ namespace gfx {
             instance.instanceCustomIndex = 0; // geometry_start
             instance.instanceShaderBindingTableRecordOffset = 0;
 
-            int32_t index = m_gpuScene.tlas.desc.instances.size();
-            m_gpuScene.tlas.desc.instances.push_back(instance);
-            m_gpuScene.tlas.instanceList[entity].push_back(IndexInfo{ index });
+            int32_t index = m_perSceneGPUInfo.tlas.desc.instances.size();
+            m_perSceneGPUInfo.tlas.desc.instances.push_back(instance);
+            m_perSceneGPUInfo.tlas.instanceList[entity].push_back(IndexInfo{ index });
           }
         }
       }
@@ -510,8 +548,8 @@ namespace gfx {
             instance.instanceCustomIndex = primitive.primitiveType; // geometry_start
             instance.instanceShaderBindingTableRecordOffset = 0;
 
-            int32_t index = m_gpuScene.tlas.instanceList[entity][instance_offset++].assignedIndex;
-            m_gpuScene.tlas.desc.instances[index] = instance;
+            int32_t index = m_perSceneGPUInfo.tlas.instanceList[entity][instance_offset++].assignedIndex;
+            m_perSceneGPUInfo.tlas.desc.instances[index] = instance;
           }
         }
         else {
@@ -524,8 +562,8 @@ namespace gfx {
             instance.instanceCustomIndex = 0; // geometry_start
             instance.instanceShaderBindingTableRecordOffset = 0;
 
-            int32_t index = m_gpuScene.tlas.instanceList[entity][instance_offset++].assignedIndex;
-            m_gpuScene.tlas.desc.instances[index] = instance;
+            int32_t index = m_perSceneGPUInfo.tlas.instanceList[entity][instance_offset++].assignedIndex;
+            m_perSceneGPUInfo.tlas.desc.instances[index] = instance;
           }
         }
 
@@ -534,10 +572,24 @@ namespace gfx {
     }
 
     if (should_rebuilt_tlas) {
-      m_gpuScene.tlas.back = std::move(m_gpuScene.tlas.prim);
-      m_gpuScene.tlas.prim = GFXContext::device()->create_tlas(m_gpuScene.tlas.desc);
-
+      m_perSceneGPUInfo.tlas.back = std::move(m_perSceneGPUInfo.tlas.prim);
+      m_perSceneGPUInfo.tlas.prim = GFXContext::device()->create_tlas(m_perSceneGPUInfo.tlas.desc);
     }
+
+    // get scene index
+    int32_t scene_index = -1;
+    auto iter = gpu_scene->m_sceneIDMap.find(this);
+    if (iter == gpu_scene->m_sceneIDMap.end()) {
+      scene_index = gpu_scene->m_sceneIDMap.size();
+      gpu_scene->m_sceneIDMap[this] = scene_index;
+    }
+    else {
+      scene_index = iter->second;
+    }
+    // upload tlas to gpu_scene
+    if(gpu_scene->tlasList.size() <= scene_index)
+      gpu_scene->tlasList.resize(scene_index + 1);
+    gpu_scene->tlasList[scene_index] = m_perSceneGPUInfo.tlas.prim.get();
   }
 
   auto Scene::draw_meshes(rhi::RenderPassEncoder* encoder, int32_t geometryID_offset) noexcept -> void {
@@ -624,6 +676,86 @@ namespace gfx {
     return iter->second.first;
   }
 
+  auto Scene::PerSceneGPUInfo::reset() noexcept -> void {
+    lightSampler.treeBuffer = GFXContext::create_buffer_empty();
+    lightSampler.treeBuffer->m_job = "Scene light-bvh tree buffer";
+    lightSampler.treeBuffer->m_usages = rhi::BufferUsageEnum::STORAGE
+      | rhi::BufferUsageEnum::SHADER_DEVICE_ADDRESS;
+
+    lightSampler.trailBuffer = GFXContext::create_buffer_empty();
+    lightSampler.trailBuffer->m_job = "Scene light-bvh trail buffer";
+    lightSampler.trailBuffer->m_usages = rhi::BufferUsageEnum::STORAGE
+      | rhi::BufferUsageEnum::SHADER_DEVICE_ADDRESS;
+  }
+  
+  auto Scene::GPUScene::reset() noexcept -> void {
+    meshList.clear();
+    cameraList.clear();
+    geometryList.clear();
+
+    positionBuffer = DynamicVectorBufferView<uint64_t>();
+    positionBuffer.m_buffer = GFXContext::create_buffer_empty();
+    positionBuffer.m_buffer->m_job = "Scene position buffer";
+    positionBuffer.m_buffer->m_usages = rhi::BufferUsageEnum::STORAGE;
+
+    indexBuffer = DynamicVectorBufferView<uint64_t>();
+    indexBuffer.m_buffer = GFXContext::create_buffer_empty();
+    indexBuffer.m_buffer->m_job = "Scene index buffer";
+    indexBuffer.m_buffer->m_usages = rhi::BufferUsageEnum::STORAGE;
+
+    vertexBuffer = DynamicVectorBufferView<uint64_t>();
+    vertexBuffer.m_buffer = GFXContext::create_buffer_empty();
+    vertexBuffer.m_buffer->m_job = "Scene vertex buffer";
+    vertexBuffer.m_buffer->m_usages = rhi::BufferUsageEnum::STORAGE;
+
+    cameraBuffer = DynamicVectorBufferView<CameraData>();
+    cameraBuffer.m_buffer = GFXContext::create_buffer_empty();
+    cameraBuffer.m_buffer->m_job = "Scene camera buffer";
+    cameraBuffer.m_buffer->m_usages = rhi::BufferUsageEnum::STORAGE;
+    cameraBuffer.m_buffer->m_memoryCopyMode = gfx::Buffer::MemoryCopyMode::COHERENT_MAPPING;
+
+    geometryBuffer = DynamicVectorBufferView<GeometryDrawData>();
+    geometryBuffer.m_buffer = GFXContext::create_buffer_empty();
+    geometryBuffer.m_buffer->m_job = "Scene geometry buffer";
+    geometryBuffer.m_buffer->m_usages = rhi::BufferUsageEnum::STORAGE;
+
+    materialBuffer = DynamicVectorBufferView<Material::MaterialPacket>();
+    materialBuffer.m_buffer = GFXContext::create_buffer_empty();
+    materialBuffer.m_buffer->m_job = "Scene material buffer";
+    materialBuffer.m_buffer->m_usages = rhi::BufferUsageEnum::STORAGE;
+
+    lightBuffer = DynamicVectorBufferView<LightData>();
+    lightBuffer.m_buffer = GFXContext::create_buffer_empty();
+    lightBuffer.m_buffer->m_job = "Scene light buffer";
+    lightBuffer.m_buffer->m_usages = rhi::BufferUsageEnum::STORAGE;
+
+    mediumPool.medium_buffer = DynamicVectorBufferView<Medium::MediumPacket>();
+    mediumPool.medium_buffer.m_buffer = GFXContext::create_buffer_empty();
+    mediumPool.medium_buffer.m_buffer->m_job = "Scene medium desc buffer buffer";
+    mediumPool.medium_buffer.m_buffer->m_usages = rhi::BufferUsageEnum::STORAGE;
+    mediumPool.medium_buffer.m_buffer->m_memoryCopyMode = gfx::Buffer::MemoryCopyMode::COHERENT_MAPPING;
+
+    mediumPool.grid_storage_buffer = GFXContext::create_buffer_empty();
+    mediumPool.grid_storage_buffer->m_job = "Scene medium storage buffer";
+    mediumPool.grid_storage_buffer->m_usages = rhi::BufferUsageEnum::STORAGE;
+
+    lbvhTreeBuffer = DynamicVectorBufferView<uint64_t>();
+    lbvhTreeBuffer.m_buffer = GFXContext::create_buffer_empty();
+    lbvhTreeBuffer.m_buffer->m_job = "Scene lbvh tree buffer";
+    lbvhTreeBuffer.m_buffer->m_usages = rhi::BufferUsageEnum::STORAGE;
+
+    lbvhTrailBuffer = DynamicVectorBufferView<uint64_t>();
+    lbvhTrailBuffer.m_buffer = GFXContext::create_buffer_empty();
+    lbvhTrailBuffer.m_buffer->m_job = "Scene lbvh trail buffer";
+    lbvhTrailBuffer.m_buffer->m_usages = rhi::BufferUsageEnum::STORAGE;
+
+    sceneDataList = DynamicVectorBufferView<SceneData>();
+    sceneDataList.m_buffer = GFXContext::create_buffer_empty();
+    sceneDataList.m_buffer->m_job = "Scene info buffer";
+    sceneDataList.m_buffer->m_usages = rhi::BufferUsageEnum::STORAGE;
+    sceneDataList.m_buffer->m_memoryCopyMode = gfx::Buffer::MemoryCopyMode::COHERENT_MAPPING;
+  }
+
   auto Scene::GPUScene::binding_resource_position() noexcept -> rhi::BindingResource {
     return rhi::BindingResource{ {positionBuffer.m_buffer->m_buffer.get(), 0, positionBuffer.m_buffer->m_buffer->size()} };
   }
@@ -657,29 +789,24 @@ namespace gfx {
   }
 
   auto Scene::GPUScene::binding_resource_sceneinfo() noexcept -> rhi::BindingResource {
-    return rhi::BindingResource{ {sceneInfo.sceneBuffer->m_buffer.get(), 0, sceneInfo.sceneBuffer->m_buffer->size()} };
+    return rhi::BindingResource{ {sceneDataList.m_buffer->m_buffer.get(), 0, sceneDataList.m_buffer->m_buffer->size()} };
   }
 
   auto Scene::GPUScene::binding_resource_lightbvh_tree() noexcept -> rhi::BindingResource {
-    if (lightSampler.treeBuffer->m_buffer.get() == nullptr) {
-      lightSampler.treeBuffer->m_host.resize(64);
-      lightSampler.treeBuffer->m_hostStamp++;
-      lightSampler.treeBuffer->host_to_device();
-    }
-    return rhi::BindingResource{ {lightSampler.treeBuffer->m_buffer.get(), 0, lightSampler.treeBuffer->m_buffer->size()} };
+    return rhi::BindingResource{ {lbvhTreeBuffer.m_buffer->m_buffer.get(), 0, lbvhTreeBuffer.m_buffer->m_buffer->size()} };
   }
 
   auto Scene::GPUScene::binding_resource_lightbvh_trail() noexcept -> rhi::BindingResource {
-    if (lightSampler.trailBuffer->m_buffer.get() == nullptr) {
-      lightSampler.trailBuffer->m_host.resize(64);
-      lightSampler.trailBuffer->m_hostStamp++;
-      lightSampler.trailBuffer->host_to_device();
-    }
-    return rhi::BindingResource{ {lightSampler.trailBuffer->m_buffer.get(), 0, lightSampler.trailBuffer->m_buffer->size()} };
+    return rhi::BindingResource{ {lbvhTrailBuffer.m_buffer->m_buffer.get(), 0, lbvhTrailBuffer.m_buffer->m_buffer->size()} };
   }
 
   auto Scene::GPUScene::binding_resource_tlas() noexcept -> rhi::BindingResource {
-    return rhi::BindingResource{ {tlas.prim.get()} };
+    // get all TLAS pointers
+    std::vector<rhi::TLAS*> tlas_ptrs;
+    for (auto& tlas : tlasList) {
+      tlas_ptrs.push_back(tlas);
+    }
+    return rhi::BindingResource{ {tlas_ptrs} };
   }
 
   auto Scene::GPUScene::binding_resource_medium() noexcept -> rhi::BindingResource {
@@ -694,5 +821,55 @@ namespace gfx {
         mediumPool.grid_storage_buffer->m_buffer->size()} };
   }
 
+  auto SceneBatch::reset() noexcept -> void {
+    m_gpuSceneBatch.reset();
+  }
+
+  auto SceneBatch::update_gpu_scene_batch() noexcept -> void {
+    // update scene transforms
+    for (auto& scene_handle : m_scenes) 
+      scene_handle->update_transform();
+
+    // update scene meshes
+    for (auto& scene_handle : m_scenes) 
+      scene_handle->update_gpu_meshes(&m_gpuSceneBatch);
+    m_gpuSceneBatch.positionBuffer.m_buffer->host_to_device();
+    m_gpuSceneBatch.indexBuffer.m_buffer->host_to_device();
+    m_gpuSceneBatch.vertexBuffer.m_buffer->host_to_device();
+    m_gpuSceneBatch.materialBuffer.m_buffer->host_to_device();
+
+    // update scene cameras
+    for (auto& scene_handle : m_scenes) 
+      scene_handle->update_gpu_camera(&m_gpuSceneBatch);
+    m_gpuSceneBatch.cameraBuffer.m_buffer->host_to_device();
+
+    // update scene lights
+    for (auto& scene_handle : m_scenes) 
+      scene_handle->update_gpu_lights(&m_gpuSceneBatch);
+    m_gpuSceneBatch.lightBuffer.m_buffer->host_to_device();
+    m_gpuSceneBatch.sceneDataList.m_buffer->host_to_device();
+    m_gpuSceneBatch.lbvhTreeBuffer.m_buffer->host_to_device();
+    m_gpuSceneBatch.lbvhTrailBuffer.m_buffer->host_to_device();
+
+    // update scene mediums
+    for (auto& scene_handle : m_scenes) 
+      scene_handle->update_gpu_medium(&m_gpuSceneBatch);
+    m_gpuSceneBatch.mediumPool.medium_buffer.m_buffer->host_to_device();
+    m_gpuSceneBatch.mediumPool.grid_storage_buffer->host_to_device();
+
+    // update scene BVH
+    for (auto& scene_handle : m_scenes) 
+      scene_handle->update_gpu_bvh(&m_gpuSceneBatch);
+
+    for (auto& scene_handle : m_scenes) {
+      // set all transform dirty flag to false
+      auto node_view = scene_handle->m_registry.view<Transform>();
+      for (auto [entity, _transform] : node_view.each()) {
+        _transform.m_dirtyToGPU = false;
+      }
+    }
+
+    m_gpuSceneBatch.geometryBuffer.m_buffer->host_to_device();
+  }
 }
 }

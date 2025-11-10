@@ -389,10 +389,10 @@ namespace gfx{
   }
 
   auto Scene::update_gpu_lightbvh() noexcept -> void {
-    if (m_gpuScene.lightSampler.sampler == nullptr) {
-      m_gpuScene.lightSampler.sampler = std::make_unique<BVHLightSampler>();
+    if (m_perSceneGPUInfo.lightSampler.sampler == nullptr) {
+      m_perSceneGPUInfo.lightSampler.sampler = std::make_unique<BVHLightSampler>();
     }
-    BVHLightSampler* sampler = (BVHLightSampler*)m_gpuScene.lightSampler.sampler.get();
+    BVHLightSampler* sampler = (BVHLightSampler*)m_perSceneGPUInfo.lightSampler.sampler.get();
     sampler->allLightBounds.pMin = vec3(+1e9);
     sampler->allLightBounds.pMax = vec3(-1e9);
 
@@ -425,19 +425,19 @@ namespace gfx{
     if (!bvhLights.empty())
       sampler->build_bvh(bvhLights, 0, bvhLights.size(), 0, 0);
 
-    m_gpuScene.lightSampler.treeBuffer->m_host.resize(sampler->nodes.size() * sizeof(LightBVHNode));
-    memcpy((LightBVHNode*)m_gpuScene.lightSampler.treeBuffer->m_host.data(), sampler->nodes.data(),
+    m_perSceneGPUInfo.lightSampler.treeBuffer->m_host.resize(sampler->nodes.size() * sizeof(LightBVHNode));
+    memcpy((LightBVHNode*)m_perSceneGPUInfo.lightSampler.treeBuffer->m_host.data(), sampler->nodes.data(),
       sampler->nodes.size() * sizeof(LightBVHNode));
 
-    m_gpuScene.lightSampler.trailBuffer->m_host.resize(sampler->lightToBitTrail.size() * sizeof(uint32_t));
-    memcpy((LightBVHNode*)m_gpuScene.lightSampler.trailBuffer->m_host.data(), sampler->lightToBitTrail.data(),
+    m_perSceneGPUInfo.lightSampler.trailBuffer->m_host.resize(sampler->lightToBitTrail.size() * sizeof(uint32_t));
+    memcpy((LightBVHNode*)m_perSceneGPUInfo.lightSampler.trailBuffer->m_host.data(), sampler->lightToBitTrail.data(),
       sampler->lightToBitTrail.size() * sizeof(uint32_t));
 
-    m_gpuScene.lightSampler.treeBuffer->m_hostStamp++;
-    m_gpuScene.lightSampler.trailBuffer->m_hostStamp++;
-    m_gpuScene.lightSampler.treeBuffer->host_to_device();
-    m_gpuScene.lightSampler.trailBuffer->host_to_device();
-    m_gpuScene.lightSampler.allLightBounds = sampler->allLightBounds;
+    m_perSceneGPUInfo.lightSampler.treeBuffer->m_hostStamp++;
+    m_perSceneGPUInfo.lightSampler.trailBuffer->m_hostStamp++;
+    m_perSceneGPUInfo.lightSampler.treeBuffer->host_to_device();
+    m_perSceneGPUInfo.lightSampler.trailBuffer->host_to_device();
+    m_perSceneGPUInfo.lightSampler.allLightBounds = sampler->allLightBounds;
   }
 }
 }

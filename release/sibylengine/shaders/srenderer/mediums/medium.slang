@@ -18,7 +18,7 @@ struct HomogeneousMajorantIterator {
     RayMajorantSegment seg;
     bool called;
 
-    __init() { called = true; }
+    __init() { called = true; seg = { float3(0), 0, 0, false }; }
     __init(float t_min, float tMax, float3 sigma_maj) {
         seg = { sigma_maj, t_min, tMax, true };
         called = false;
@@ -39,6 +39,18 @@ struct MajorantGrid {
     bounds3 bounds;
     int3 resolution;
     int offset;
+
+    __init() {
+        bounds = bounds3();
+        resolution = int3(0, 0, 0);
+        offset = 0;
+    }
+
+    __init(bounds3 b, int3 res, int off) {
+        bounds = b;
+        resolution = res;
+        offset = off;
+    }
 
     float look_up(int3 idx) {
         return se_medium_grid_buffer[offset +
@@ -79,7 +91,17 @@ struct DDAMajorantIterator {
     int voxelLimit[3];
     int voxel[3];
 
-    __init() {}
+    __init() {
+        sigma_t = float3(0);
+        tMin = M_INF;
+        tMax = -M_INF;
+        grid = { bounds3(), int3(0), 0 };
+        nextCrossingT[0] = nextCrossingT[1] = nextCrossingT[2] = M_INF;
+        deltaT[0] = deltaT[1] = deltaT[2] = M_INF;
+        step[0] = step[1] = step[2] = 0;
+        voxelLimit[0] = voxelLimit[1] = voxelLimit[2] = 0;
+        voxel[0] = voxel[1] = voxel[2] = 0;
+    }
     __init(Ray ray, float tMin, float tMax, MajorantGrid grid, float3 sigma_t) {
         this.tMin = tMin;
         this.tMax = tMax;
@@ -229,7 +251,12 @@ struct HomogeneousMediumParameter: IMediumParameter {
     float3 Le;
     PhasePacket phase;
     
-    __init() {}
+    __init() {
+        sigma_a = float3(0);
+        sigma_s = float3(0);
+        Le = float3(0);
+        phase = { float3(0) };
+    }
     __init(MediumData data) {
         sigma_a = data.get_sigma_a();
         sigma_s = data.get_sigma_s();
@@ -288,7 +315,17 @@ struct GridMediumParameter : IMediumParameter {
     SampledGrid LeGrid;
     SampledGrid temperatureGrid;
     
-    __init() {}
+    __init() {
+        sigma_a_spec = float3(0);
+        sigma_s_spec = float3(0);
+        Le_spec = float3(0);
+        phase = { float3(0) };
+        isEmissive = false;
+        LeScale = 0;
+        temperatureScale = 1.0f;
+        w2o = float4x4(1);
+        o2w = float4x4(1);
+    }
     __init(MediumData packet) {
         sigma_a_spec = packet.get_sigma_a();
         sigma_s_spec = packet.get_sigma_s();
@@ -414,13 +451,17 @@ struct RGBGridMediumParameter : IMediumParameter {
     RGBSampledGrid sigma_s_Grid;
     imedium::MajorantGrid majorantGrid;
 
-    __init() {}
+    __init() {
+        scale = 1.0f;
+        w2o = float4x4(1);
+        o2w = float4x4(1);
+        phase = { float3(0) };
+        isEmissive = false;
+    }
     __init(MediumData packet) {
         o2w = packet.medium_to_world();
-        
-        // w2o = packet.world_to_medium();
-        // o2w = float4x4(1);
-        // w2o = float4x4(1);
+        w2o = packet.world_to_medium();
+
         bounds = bounds3(
             mul(float4(packet.bound_min, 1), o2w).xyz,
             mul(float4(packet.bound_max, 1), o2w).xyz, );

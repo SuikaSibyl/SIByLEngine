@@ -123,8 +123,16 @@ namespace slang_inline {
       unsigned space = parameter->getBindingSpace();
       bindinfo.binding = index;
       bindinfo.set = space;
+      // get array size
       slang::TypeLayoutReflection* typeLayout = parameter->getTypeLayout();
       slang::TypeReflection::Kind kind = typeLayout->getKind();
+
+      size_t arrayCount = 1;
+      slang::TypeReflection* param_type = parameter->getTypeLayout()->getType();
+      if (param_type->getKind() == slang::TypeReflection::Kind::Array) {
+        arrayCount = param_type->getElementCount(); // <— this is what you want
+      }
+
       switch (kind) {
       case slang::TypeReflection::Kind::None:
         break;
@@ -176,6 +184,7 @@ namespace slang_inline {
         break;
       case slang::BindingType::RayTracingAccelerationStructure:
         bindinfo.type = se::gfx::ShaderReflection::ResourceType::AccelerationStructure;
+        bindinfo.count = arrayCount;
         break;
       case slang::BindingType::ConstantBuffer:
         bindinfo.type = se::gfx::ShaderReflection::ResourceType::UniformBuffer;
@@ -222,7 +231,6 @@ namespace slang_inline {
     for (size_t i = 0; i < entrypoints.size(); ++i) {
 
       SlangInt32 w = slangModule->getDefinedEntryPointCount();
-      se::info("GFX::SLANG::Defined entry point count: " + std::to_string(w));
       SlangResult result = slangModule->findEntryPointByName(
         entrypoints[i].first.c_str(), entryPointsPtrs[i].writeRef());
       if (result != 0) {
@@ -753,9 +761,11 @@ namespace gfx {
         entry.array_size = bind.arraySize;
         descriptor.entries.emplace_back(entry);
       }
-      else if (bind.type == ResourceType::AccelerationStructure)
-        descriptor.entries.push_back(rhi::BindGroupLayoutEntry{
-            i, bind.stages, rhi::AccelerationStructureBindingLayout{} });
+      else if (bind.type == ResourceType::AccelerationStructure) {
+        rhi::BindGroupLayoutEntry entry{ i, bind.stages, rhi::AccelerationStructureBindingLayout{} };
+        entry.array_size = bind.arraySize;
+        descriptor.entries.emplace_back(entry);
+      }
       else if (bind.type == ResourceType::SampledImages)
         descriptor.entries.push_back(rhi::BindGroupLayoutEntry{
             i, bind.stages, rhi::BindlessTexturesBindingLayout{} });
@@ -2735,7 +2745,9 @@ namespace gfx {
           case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC:
             entry.type = ShaderReflection::ResourceType::StorageBuffer; break;
           case SPV_REFLECT_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR:
-            entry.type = ShaderReflection::ResourceType::AccelerationStructure; break;
+            entry.type = ShaderReflection::ResourceType::AccelerationStructure;
+            entry.arraySize = binding->count;
+            break;
           case SPV_REFLECT_DESCRIPTOR_TYPE_INPUT_ATTACHMENT:
           case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER:
           case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER:
@@ -2743,8 +2755,10 @@ namespace gfx {
             se::error("SPIRV-Reflect :: Unexpected resource type");
             break;
           }
-          if (desc_set.bindings[j]->array.dims_count >= 1) {
-            entry.arraySize = 1000;
+          if (desc_set.bindings[j]->array.dims_count >= 1 
+            && entry.arraySize == 1
+          ) {
+            entry.arraySize = 99;
           }
           entry.flags = flag;
           entry.stages = stage;

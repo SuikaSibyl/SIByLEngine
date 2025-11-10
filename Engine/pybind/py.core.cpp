@@ -4,6 +4,7 @@
 #include <nanobind/stl/vector.h>
 #include <nanobind/stl/pair.h>
 #include <nanobind/stl/unique_ptr.h>
+#include <nanobind/stl/shared_ptr.h>
 #include <nanobind/stl/optional.h>
 #include <nanobind/trampoline.h>
 #include <nanobind/ndarray.h>
@@ -874,6 +875,11 @@ NB_MODULE(pycore, m) {
     .def("binding_resource_medium_grid", &se::gfx::Scene::GPUScene::binding_resource_medium_grid)
     .def("binding_resource_camera", &se::gfx::Scene::GPUScene::binding_resource_camera);
 
+  nb::class_<se::gfx::SceneBatch>(gfx_scene, "SceneBatch")
+    .def("emplace_scene", &se::gfx::SceneBatch::emplace_scene)
+    .def("update_gpu_scene_batch", &se::gfx::SceneBatch::update_gpu_scene_batch)
+    .def("gpu_scene", [](se::gfx::SceneBatch& self) { return self.gpu_scene(); }, nb::rv_policy::reference);
+  
   nb::class_<se::gfx::SceneHandle>(ns_gfx, "SceneHandle")
     .def("update_scripts", [](se::gfx::SceneHandle& self) { return self->update_scripts(); })
     .def("update_transform", [](se::gfx::SceneHandle& self) { return self->update_transform(); })
@@ -902,6 +908,7 @@ NB_MODULE(pycore, m) {
     .def_static("load_scene_gltf", &se::gfx::GFXContext::load_scene_gltf)
     .def_static("load_scene_xml", &se::gfx::GFXContext::load_scene_xml)
     .def_static("load_scene_pbrt", &se::gfx::GFXContext::load_scene_pbrt)
+    .def_static("create_scene_batch", &se::gfx::GFXContext::create_scene_batch)
     .def_static("clean_texture_cache", &se::gfx::GFXContext::clean_texture_cache)
     .def_static("clean_cache", &se::gfx::GFXContext::clean_cache)
     .def_static("frame_end", &se::gfx::GFXContext::frame_end)
@@ -961,9 +968,11 @@ NB_MODULE(pycore, m) {
   nb::class_<se::rdg::RenderData>(ns_rdg, "RenderData")
     .def(nb::init<>())
     .def("set_scene", &se::rdg::RenderData::set_scene)
+    .def("set_scene_batch", &se::rdg::RenderData::set_scene_batch)
     .def("get_texture", &se::rdg::RenderData::get_texture)
     .def("get_buffer", &se::rdg::RenderData::get_buffer)
-    .def("get_scene", &se::rdg::RenderData::get_scene);
+    .def("get_scene", &se::rdg::RenderData::get_scene)
+    .def("get_scene_batch", &se::rdg::RenderData::get_scene_batch, nb::rv_policy::reference);
 
   nb::class_<se::rdg::Pass, se::rdg::PyPass<>>(ns_rdg, "Pass")
     .def("pass", &se::rdg::Pass::pass)
@@ -980,7 +989,7 @@ NB_MODULE(pycore, m) {
     .def("reflect", &se::rdg::RenderPass::reflect)
     .def("execute", &se::rdg::RenderPass::execute)
     .def("update_bindings", &se::rdg::RenderPass::update_bindings)
-    .def("update_binding_scene", &se::rdg::RenderPass::update_binding_scene)
+    .def("update_binding_scene_batch", &se::rdg::RenderPass::update_binding_scene_batch)
     .def("set_render_pass_descriptor", &se::rdg::RenderPass::set_render_pass_descriptor)
     .def("init", static_cast<void(se::rdg::RenderPass::*)(
       std::string const&)>(&se::rdg::RenderPass::init))
@@ -1009,10 +1018,13 @@ NB_MODULE(pycore, m) {
      .def("reflect", &se::rdg::ComputePass::reflect)
      .def("execute", &se::rdg::ComputePass::execute)
      .def("update_binding_scene", &se::rdg::RenderPass::update_binding_scene)
+     .def("update_binding_scene_batch", &se::rdg::RenderPass::update_binding_scene_batch)
      .def("update_bindings", &se::rdg::ComputePass::update_bindings)
      .def("begin_pass", &se::rdg::ComputePass::begin_pass, nb::rv_policy::reference)
      .def("init", nb::overload_cast<std::string const&>(&se::rdg::ComputePass::init))
-     .def("init", nb::overload_cast<se::gfx::ShaderModule*>(&se::rdg::ComputePass::init));
+     .def("init", nb::overload_cast<se::gfx::ShaderModule*>(&se::rdg::ComputePass::init))
+     .def("init", nb::overload_cast<std::string const&,
+        std::vector<std::pair<char const*, char const*>> const&>(&se::rdg::ComputePass::init));
 
   nb::class_<se::rdg::Graph, se::rdg::PyGraph<>>(ns_rdg, "Graph")
     .def(nb::init<>())

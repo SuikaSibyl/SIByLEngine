@@ -1996,6 +1996,7 @@ namespace rhi {
       : type(BindingResourceType::TEXTURE_VIEW), storageArray(storageTextures) {}
     // Binding a tlas resource
     BindingResource(TLAS* tlas) : tlas(tlas) {}
+    BindingResource(std::vector<TLAS*> const& tlas) : tlasList(tlas) {}
     BindingResourceType type = BindingResourceType::None;
     Sampler* sampler = nullptr;
     TextureView* textureView = nullptr;
@@ -2004,6 +2005,7 @@ namespace rhi {
     std::vector<TextureView*> storageArray = {};
     std::optional<BufferBinding> bufferBinding;
     TLAS* tlas = nullptr;
+    std::vector<TLAS*> tlasList = {};
   };
 
   struct BindGroupEntry { 

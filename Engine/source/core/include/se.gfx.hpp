@@ -244,6 +244,17 @@ namespace gfx {
       m_buffer->m_hostStamp++;
     }
 
+    // Set or update element at index
+    auto set_or_update(int32_t idx, T const& value) noexcept -> void {
+      if (idx >= m_size) {
+        m_size = idx + 1;
+        if (m_size * sizeof(T) >= m_buffer->m_host.size())
+          m_buffer->m_host.resize(std::max(m_size * sizeof(T), m_buffer->m_host.size() * 2));
+      }
+      std::memcpy(&m_buffer->m_host[idx * sizeof(T)], &value, sizeof(T));
+      m_buffer->m_hostStamp++;
+    }
+
     // Access element at index
     T& operator[](int32_t idx) {
       return *reinterpret_cast<T*>(&m_buffer->m_host[idx * sizeof(T)]);
@@ -505,6 +516,7 @@ namespace gfx {
       ResourceType type = ResourceType::Undefined;
       uint32_t set;
       uint32_t binding;
+      uint32_t count = 1;
     };
     std::unordered_map<std::string, BindingInfo> bindingInfo;
 
@@ -1118,11 +1130,47 @@ namespace gfx {
     se::timer m_timer;
     std::optional<ivec2> m_viewportSize;
 
+    struct SceneEntity {
+      Scene* scene;
+      ex::entity entity;
+      // enable hashing for unordered_map
+      auto operator==(const SceneEntity& other) const noexcept -> bool {
+        return (scene == other.scene) && (entity == other.entity);
+      }
+    };
+
+    struct SceneEntityHash {
+        std::size_t operator()(const SceneEntity& p) const noexcept {
+            std::size_t h1 = std::hash<Scene*>{}(p.scene);
+            std::size_t h2 = std::hash<int>{}(entt::id_type(p.entity));
+            return h1 ^ (h2 << 1);
+        }
+    };
+
     struct IndexInfo {
       int32_t assignedIndex;
       int32_t heartBeat = 0;
       int32_t length = 1;
     };
+
+    struct PerSceneGPUInfo {
+      struct LightSampler {
+        std::unique_ptr<ILightSampler> sampler;
+        BufferHandle treeBuffer;
+        BufferHandle trailBuffer;
+        bounds3 allLightBounds;
+      } lightSampler;
+
+      struct TLAS {
+        rhi::TLASDescriptor desc = {};
+        std::unordered_map<ex::entity, std::vector<IndexInfo>> instanceList;
+
+        std::unique_ptr<rhi::TLAS> prim = nullptr;
+        std::unique_ptr<rhi::TLAS> back = nullptr;
+      } tlas;
+
+      auto reset() noexcept -> void;
+    } m_perSceneGPUInfo;
 
     struct GPUScene {
       DynamicVectorBufferView<uint64_t> positionBuffer;
@@ -1131,7 +1179,7 @@ namespace gfx {
       std::unordered_map<gfx::Mesh*, IndexInfo> meshList;
 
       DynamicVectorBufferView<CameraData> cameraBuffer;
-      std::unordered_map<ex::entity, IndexInfo> cameraList;
+      std::unordered_map<SceneEntity, IndexInfo, SceneEntityHash> cameraList;
 
       DynamicVectorBufferView<GeometryDrawData> geometryBuffer;
       std::unordered_map<ex::entity, std::vector<IndexInfo>> geometryList;
@@ -1142,20 +1190,8 @@ namespace gfx {
       DynamicVectorBufferView<LightData> lightBuffer;
       std::unordered_map<ex::entity, std::vector<IndexInfo>> lightList;
 
-      struct TLAS {
-        rhi::TLASDescriptor desc = {};
-        std::unordered_map<ex::entity, std::vector<IndexInfo>> instanceList;
-
-        std::unique_ptr<rhi::TLAS> prim = nullptr;
-        std::unique_ptr<rhi::TLAS> back = nullptr;
-      } tlas;
-
-      struct LightSampler {
-        std::unique_ptr<ILightSampler> sampler;
-        BufferHandle treeBuffer;
-        BufferHandle trailBuffer;
-        bounds3 allLightBounds;
-      } lightSampler;
+      DynamicVectorBufferView<uint64_t> lbvhTreeBuffer;
+      DynamicVectorBufferView<uint64_t> lbvhTrailBuffer;
 
       struct ImagePool {
         std::unordered_map<UID, std::pair<int, TextureHandle>> texture_loc_index;
@@ -1183,11 +1219,12 @@ namespace gfx {
         int environment_map = -1;
         int padding = 0;
       };
-      struct SceneInfo {
-        BufferHandle sceneBuffer;
-        SceneData* data;
-      } sceneInfo;
 
+      DynamicVectorBufferView<SceneData> sceneDataList;
+      std::vector<rhi::TLAS*> tlasList;
+      std::unordered_map<Scene*, int> m_sceneIDMap;
+
+      auto reset() noexcept -> void;
       auto binding_resource_position() noexcept -> rhi::BindingResource;
       auto binding_resource_index() noexcept -> rhi::BindingResource;
       auto binding_resource_vertex() noexcept -> rhi::BindingResource;
@@ -1209,12 +1246,12 @@ namespace gfx {
     auto update_scripts() noexcept -> void;
     auto update_transform() noexcept -> void;
     auto update_gpu_scene() noexcept -> void;
-    auto update_gpu_meshes() noexcept -> void;
-    auto update_gpu_camera() noexcept -> void;
-    auto update_gpu_lights() noexcept -> void;
-    auto update_gpu_medium() noexcept -> void;
+    auto update_gpu_meshes(GPUScene* gpu_scene) noexcept -> void;
+    auto update_gpu_camera(GPUScene* gpu_scene) noexcept -> void;
+    auto update_gpu_lights(GPUScene* gpu_scene) noexcept -> void;
+    auto update_gpu_medium(GPUScene* gpu_scene) noexcept -> void;
     auto update_gpu_lightbvh() noexcept -> void;
-    auto update_gpu_bvh() noexcept -> void;
+    auto update_gpu_bvh(GPUScene* gpu_scene) noexcept -> void;
 
     auto draw_meshes(rhi::RenderPassEncoder*, int32_t geometryIDOffset = 0) noexcept -> void;
     auto set_viewport_size(ivec2 size) noexcept -> void;
@@ -1234,6 +1271,19 @@ namespace gfx {
   };
   // The handle of texture
   using SceneHandle = ResourceHandle<Scene>;
+
+  struct SceneBatch {
+    std::vector<SceneHandle> m_scenes;
+    Scene::GPUScene m_gpuSceneBatch;
+    
+    SceneBatch() { reset(); }
+    auto reset() noexcept -> void;
+    auto emplace_scene(SceneHandle scene) noexcept -> void;
+    auto update_gpu_scene_batch() noexcept -> void;
+    auto gpu_scene() noexcept -> Scene::GPUScene* { return &m_gpuSceneBatch; }
+  };
+  // The handle of SceneBatch
+  using SceneBatchHandle = std::shared_ptr<SceneBatch>;
 
   struct SceneLoader {
     using result_type = std::shared_ptr<Scene>;
@@ -1370,6 +1420,7 @@ namespace gfx {
     static auto load_scene_gltf(std::string const& path) noexcept -> SceneHandle;
     static auto load_scene_xml(std::string const& path) noexcept -> SceneHandle;
     static auto load_scene_pbrt(std::string const& path) noexcept -> SceneHandle;
+    static auto create_scene_batch() noexcept -> SceneBatchHandle;
 
     static auto frame_end() noexcept -> void;
   };

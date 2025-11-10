@@ -88,10 +88,14 @@ int main() {
 
 	// build the scene
 	PROFILE_SCOPE_NAME(InitScene);
-	gfx::SceneHandle scene = gfx::GFXContext::load_scene_gltf("/home/haolin/Projects/neural_variance_reduction/example-di/data/room.glb");
+
+	gfx::SceneBatchHandle sceneBatch = gfx::GFXContext::create_scene_batch();
+	gfx::SceneHandle scene = gfx::GFXContext::load_scene_gltf("/home/haolin/Projects/neural_variance_reduction/example-di/data/grid_di_0.glb");
 	editor::EditorContext::set_scene_display(scene);
 	editor::EditorContext::set_graph_display(foo_graph.get());
-	scene->update_gpu_scene();
+	sceneBatch->emplace_scene(scene);
+	sceneBatch->update_gpu_scene_batch();
+	// scene->update_gpu_scene();
 	PROFILE_SCOPE_STOP(InitScene);
 
 	PROFILE_END_SESSION()
@@ -110,14 +114,14 @@ int main() {
 
 		// Updating
 		// -------------------------------------
-		scene->update_scripts();
-		scene->update_gpu_scene();
+		// scene->update_scripts();
+		// scene->update_gpu_scene();
 
 		// create a command encoder
 		std::unique_ptr<se::rhi::CommandEncoder> encoder = device->
 			create_command_encoder(se::gfx::GFXContext::get_flights()->get_command_buffer());
 
-		foo_graph->m_renderData.set_scene(scene);
+		foo_graph->m_renderData.set_scene_batch(sceneBatch);
 		foo_graph->execute(encoder.get());
 
 		auto output = foo_graph->get_output();
@@ -144,6 +148,7 @@ int main() {
 	device->wait_idle();
 	foo_graph = nullptr;
 	scene.release();
+	sceneBatch = nullptr;
 
 	// release the context
 	se::editor::EditorContext::finalize();

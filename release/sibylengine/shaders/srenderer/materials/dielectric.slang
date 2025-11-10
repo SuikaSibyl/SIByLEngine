@@ -129,7 +129,6 @@ struct DielectricBRDF : IBxDF {
             }
             return o;
         }
-        return o;
     }
 
     // Evaluate the PDF of the BSDF sampling

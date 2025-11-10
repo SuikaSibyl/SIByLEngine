@@ -10,7 +10,11 @@ struct ChromaGGXMaterial : IBxDFParameter {
     float3 k;       // imaginary component of IoR
     float3 alpha;   // roughness across channels
 
-    __init() {}
+    __init() {
+        eta = float3(0.200f, 0.924f, 1.102f);
+        k = float3(3.912f, 2.452f, 2.142f);
+        alpha = float3(0.1f, 0.1f, 0.1f);
+    }
     __init(MaterialData data, float2 uv) {
         k = data.floatvec_0.xyz;
         eta = data.floatvec_2.xyz;

@@ -25,8 +25,8 @@ auto InspectorPass::execute(
 	}
 	m_interaction = (Interaction*)buffer->m_buffer->get_mapped_range();
 
-	auto scene = rdrDat.get_scene();
-	update_binding_scene(rdrCtx, scene);
+	auto scene = rdrDat.get_scene_batch();
+	update_binding_scene_batch(rdrCtx, scene);
 	update_bindings(rdrCtx, {
 		{ "se_scene_tlas", scene->gpu_scene()->binding_resource_tlas() },
 		{ "rw_output", rhi::BindingResource(color->get_uav(0, 0, 1)) },

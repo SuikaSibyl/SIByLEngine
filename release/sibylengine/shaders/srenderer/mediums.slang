@@ -37,10 +37,17 @@ struct HomogeneousMediumData {
     float3 sigma_t;
     float g;
 
-    __init() {}
+    __init() {
+        sigma_a = float3(0);
+        sigma_s = float3(0);
+        sigma_t = float3(0);
+        g = 0;
+    }
     __init(MediumData data) {
         sigma_a = data.sigma_a;
         sigma_s = data.sigma_s;
+        sigma_t = float3(0, 0, 0);
+        g = 0;
     }
 };
 

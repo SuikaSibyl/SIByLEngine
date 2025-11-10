@@ -437,9 +437,19 @@ namespace rdg {
     m_scene = scene;
   }
 
+  auto RenderData::set_scene_batch(gfx::SceneBatchHandle sceneBatch) noexcept -> void {
+    m_sceneBatch = sceneBatch;
+  }
+
   auto RenderData::get_scene() const noexcept -> gfx::SceneHandle {
     if (m_scene.has_value()) return m_scene.value();
     se::error("Scene is acquired from RenderData, but is not defined.");
+    return {};
+  }
+
+  auto RenderData::get_scene_batch() const noexcept -> gfx::SceneBatchHandle {
+    if (m_sceneBatch.has_value()) return m_sceneBatch.value();
+    se::error("SceneBatch is acquired from RenderData, but is not defined.");
     return {};
   }
 
@@ -541,6 +551,22 @@ namespace rdg {
       { "se_lightbvh_nodes",    scene->gpu_scene()->binding_resource_lightbvh_tree() },
       { "se_lightbvh_trails",   scene->gpu_scene()->binding_resource_lightbvh_trail() },
       { "se_scene_buffer",      scene->gpu_scene()->binding_resource_sceneinfo() },
+		});
+  }
+
+  auto PipelinePass::update_binding_scene_batch(RenderContext* context, gfx::SceneBatchHandle sceneBatch) noexcept -> void {
+    update_bindings(context, {
+			{ "se_index_buffers",			sceneBatch->gpu_scene()->binding_resource_index() },
+			{ "se_position_buffers",	sceneBatch->gpu_scene()->binding_resource_position() },
+			{ "se_vertex_buffers",		sceneBatch->gpu_scene()->binding_resource_vertex() },
+			{ "se_camera_buffers",		sceneBatch->gpu_scene()->binding_resource_camera() },
+			{ "se_geometry_buffers",  sceneBatch->gpu_scene()->binding_resource_geometry() },
+      { "se_material_buffers",  sceneBatch->gpu_scene()->binding_resource_material() },
+      { "se_light_buffer",      sceneBatch->gpu_scene()->binding_resource_light() },
+      { "se_textures",          sceneBatch->gpu_scene()->binding_resource_textures() },
+      { "se_lightbvh_nodes",    sceneBatch->gpu_scene()->binding_resource_lightbvh_tree() },
+      { "se_lightbvh_trails",   sceneBatch->gpu_scene()->binding_resource_lightbvh_trail() },
+      { "se_scene_buffer",      sceneBatch->gpu_scene()->binding_resource_sceneinfo() },
 		});
   }
 
@@ -769,6 +795,14 @@ namespace rdg {
     m_computeShader = gfx::GFXContext::load_shader_slang(
       comp, { {"ComputeMain", rhi::ShaderStageEnum::COMPUTE} },
       {}, false)[0];
+    init(m_computeShader->get());
+  }
+
+  auto ComputePass::init(std::string const& comp,
+    std::vector<std::pair<char const*, char const*>> const& macros) noexcept -> void {
+    m_computeShader = gfx::GFXContext::load_shader_slang(
+      comp, { {"ComputeMain", rhi::ShaderStageEnum::COMPUTE} },
+      macros, false)[0];
     init(m_computeShader->get());
   }
 

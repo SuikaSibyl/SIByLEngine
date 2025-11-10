@@ -34,76 +34,8 @@ namespace se {
       m_name = "";
       m_gpuScene = {};
 
-      m_gpuScene.meshList.clear();
-      m_gpuScene.cameraList.clear();
-      m_gpuScene.geometryList.clear();
-
-      m_gpuScene.positionBuffer = DynamicVectorBufferView<uint64_t>();
-      m_gpuScene.positionBuffer.m_buffer = GFXContext::create_buffer_empty();
-      m_gpuScene.positionBuffer.m_buffer->m_job = "Scene position buffer";
-      m_gpuScene.positionBuffer.m_buffer->m_usages = rhi::BufferUsageEnum::STORAGE;
-
-      m_gpuScene.indexBuffer = DynamicVectorBufferView<uint64_t>();
-      m_gpuScene.indexBuffer.m_buffer = GFXContext::create_buffer_empty();
-      m_gpuScene.indexBuffer.m_buffer->m_job = "Scene index buffer";
-      m_gpuScene.indexBuffer.m_buffer->m_usages = rhi::BufferUsageEnum::STORAGE;
-
-      m_gpuScene.vertexBuffer = DynamicVectorBufferView<uint64_t>();
-      m_gpuScene.vertexBuffer.m_buffer = GFXContext::create_buffer_empty();
-      m_gpuScene.vertexBuffer.m_buffer->m_job = "Scene vertex buffer";
-      m_gpuScene.vertexBuffer.m_buffer->m_usages = rhi::BufferUsageEnum::STORAGE;
-
-      m_gpuScene.cameraBuffer = DynamicVectorBufferView<CameraData>();
-      m_gpuScene.cameraBuffer.m_buffer = GFXContext::create_buffer_empty();
-      m_gpuScene.cameraBuffer.m_buffer->m_job = "Scene camera buffer";
-      m_gpuScene.cameraBuffer.m_buffer->m_usages = rhi::BufferUsageEnum::STORAGE;
-      m_gpuScene.cameraBuffer.m_buffer->m_memoryCopyMode = gfx::Buffer::MemoryCopyMode::COHERENT_MAPPING;
-
-      m_gpuScene.geometryBuffer = DynamicVectorBufferView<GeometryDrawData>();
-      m_gpuScene.geometryBuffer.m_buffer = GFXContext::create_buffer_empty();
-      m_gpuScene.geometryBuffer.m_buffer->m_job = "Scene geometry buffer";
-      m_gpuScene.geometryBuffer.m_buffer->m_usages = rhi::BufferUsageEnum::STORAGE;
-
-      m_gpuScene.materialBuffer = DynamicVectorBufferView<Material::MaterialPacket>();
-      m_gpuScene.materialBuffer.m_buffer = GFXContext::create_buffer_empty();
-      m_gpuScene.materialBuffer.m_buffer->m_job = "Scene material buffer";
-      m_gpuScene.materialBuffer.m_buffer->m_usages = rhi::BufferUsageEnum::STORAGE;
-
-      m_gpuScene.lightBuffer = DynamicVectorBufferView<LightData>();
-      m_gpuScene.lightBuffer.m_buffer = GFXContext::create_buffer_empty();
-      m_gpuScene.lightBuffer.m_buffer->m_job = "Scene light buffer";
-      m_gpuScene.lightBuffer.m_buffer->m_usages = rhi::BufferUsageEnum::STORAGE;
-
-      m_gpuScene.lightSampler.treeBuffer = GFXContext::create_buffer_empty();
-      m_gpuScene.lightSampler.treeBuffer->m_job = "Scene light-bvh tree buffer";
-      m_gpuScene.lightSampler.treeBuffer->m_usages = rhi::BufferUsageEnum::STORAGE;
-
-      m_gpuScene.lightSampler.trailBuffer = GFXContext::create_buffer_empty();
-      m_gpuScene.lightSampler.trailBuffer->m_job = "Scene light-bvh trail buffer";
-      m_gpuScene.lightSampler.trailBuffer->m_usages = rhi::BufferUsageEnum::STORAGE;
-
-      m_gpuScene.mediumPool.medium_buffer = DynamicVectorBufferView<Medium::MediumPacket>();
-      m_gpuScene.mediumPool.medium_buffer.m_buffer = GFXContext::create_buffer_empty();
-      m_gpuScene.mediumPool.medium_buffer.m_buffer->m_job = "Scene medium desc buffer buffer";
-      m_gpuScene.mediumPool.medium_buffer.m_buffer->m_usages = rhi::BufferUsageEnum::STORAGE;
-      m_gpuScene.mediumPool.medium_buffer.m_buffer->m_memoryCopyMode = gfx::Buffer::MemoryCopyMode::COHERENT_MAPPING;
-
-      m_gpuScene.mediumPool.grid_storage_buffer = GFXContext::create_buffer_empty();
-      m_gpuScene.mediumPool.grid_storage_buffer->m_job = "Scene medium storage buffer";
-      m_gpuScene.mediumPool.grid_storage_buffer->m_usages = rhi::BufferUsageEnum::STORAGE;
-
-      m_gpuScene.sceneInfo.sceneBuffer = GFXContext::create_buffer_desc(rhi::BufferDescriptor{
-        sizeof(Scene::GPUScene::SceneData),
-        rhi::BufferUsageEnum::MAP_WRITE |
-        rhi::BufferUsageEnum::STORAGE,
-        rhi::BufferShareMode::EXCLUSIVE,
-        rhi::MemoryPropertyEnum::HOST_COHERENT_BIT |
-        rhi::MemoryPropertyEnum::HOST_VISIBLE_BIT
-        });
-      m_gpuScene.sceneInfo.data = (GPUScene::SceneData*)m_gpuScene.sceneInfo.sceneBuffer->memory_mapping();
-      m_gpuScene.sceneInfo.sceneBuffer->m_job = "Scene info buffer";
-      m_gpuScene.sceneInfo.sceneBuffer->m_usages = rhi::BufferUsageEnum::STORAGE;
-
+      m_perSceneGPUInfo.reset();
+      m_gpuScene.reset();
       m_timer.update();
     }
 

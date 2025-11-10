@@ -2244,6 +2244,9 @@ namespace rhi {
     // sub : bindless
     VkPhysicalDeviceDescriptorIndexingFeatures indexing_features{
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES_EXT };
+    indexing_features.descriptorBindingVariableDescriptorCount = VK_TRUE;
+    indexing_features.descriptorBindingPartiallyBound = VK_TRUE;
+    indexing_features.runtimeDescriptorArray = VK_TRUE;
     // sub : ray tracing
     VkPhysicalDeviceVulkan12Features features12{
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES };
@@ -2266,13 +2269,10 @@ namespace rhi {
         features12.descriptorBindingPartiallyBound = VK_TRUE;
         features12.runtimeDescriptorArray = VK_TRUE;
       }
-      else {
-        *pFeature2Tail = &indexing_features;
-        pFeature2Tail = &(indexing_features.pNext);
-        ;
-        indexing_features.descriptorBindingPartiallyBound = VK_TRUE;
-        indexing_features.runtimeDescriptorArray = VK_TRUE;
-      }
+      *pFeature2Tail = &indexing_features;
+      pFeature2Tail = &(indexing_features.pNext);
+      indexing_features.descriptorBindingPartiallyBound = VK_TRUE;
+      indexing_features.runtimeDescriptorArray = VK_TRUE;
     }
     if (m_context->get_context_extensions_flags() &
       ContextExtensionEnum::RAY_TRACING) {
@@ -4496,7 +4496,7 @@ namespace rhi {
       bindings[i].descriptorType = impl::getVkDecriptorType(desc.entries[i]);
       bindings[i].descriptorCount =
         bindings[i].descriptorType == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
-        ? 200
+        ? 99
         : desc.entries[i].array_size;
       bindings[i].stageFlags = impl::getVkShaderStageFlags(desc.entries[i].visibility);
       bindings[i].pImmutableSamplers = nullptr;
@@ -4580,7 +4580,7 @@ namespace rhi {
     }
     VkDescriptorSetVariableDescriptorCountAllocateInfoEXT count_info{
         VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO_EXT };
-    uint32_t max_binding = 200 - 1;
+    uint32_t max_binding = 99 - 1;
     if (hasBindless) {
       count_info.descriptorSetCount = 1;
       count_info.pDescriptorCounts = &max_binding;
@@ -4612,6 +4612,8 @@ namespace rhi {
         imageCounts += entry.resource.storageArray.size();
       else if (entry.resource.tlas)
         ++accStructCounts;
+      else if (entry.resource.tlasList.size() > 0)
+        accStructCounts += entry.resource.tlasList.size();
       else if (entry.resource.sampler)
         ++imageCounts;
     }
@@ -4619,6 +4621,7 @@ namespace rhi {
     std::vector<VkDescriptorBufferInfo> bufferInfos(bufferCounts);
     std::vector<VkDescriptorImageInfo> imageInfos(imageCounts);
     std::vector<std::vector<VkDescriptorImageInfo>> bindlessImageInfos = {};
+    std::vector<VkAccelerationStructureKHR> tlasHandles;
     std::vector<VkWriteDescriptorSetAccelerationStructureKHR>
       accelerationStructureInfos(accStructCounts);
     uint32_t bufferIndex = 0;
@@ -4741,6 +4744,40 @@ namespace rhi {
         descriptorWrite.dstArrayElement = 0;
         descriptorWrite.descriptorType = type.value();
         descriptorWrite.descriptorCount = 1;
+        descriptorWrite.pBufferInfo = nullptr;
+        descriptorWrite.pImageInfo = nullptr;
+        descriptorWrite.pTexelBufferView = nullptr;
+        descriptorWrite.pNext = &descASInfo;
+      }
+      else if (entry.resource.tlasList.size() > 0) {
+        std::optional<VkDescriptorType> type = getType(entry.binding);
+        if (!type.has_value()) continue;
+        VkWriteDescriptorSetAccelerationStructureKHR& descASInfo =
+          accelerationStructureInfos[accStructIndex++];
+
+        // create a vector of TLAS*
+        for (auto& tlasResource : entry.resource.tlasList) {
+          if (!tlasResource) {
+            tlasHandles.push_back(VK_NULL_HANDLE);
+          }
+          else {
+            tlasHandles.push_back(
+              static_cast<TLAS*>(tlasResource)->m_tlas);
+          }
+        }
+        
+        descASInfo.sType =
+          VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR;
+        descASInfo.accelerationStructureCount = static_cast<uint32_t>(tlasHandles.size());
+        descASInfo.pAccelerationStructures = tlasHandles.data();
+        descriptorWrites.push_back(VkWriteDescriptorSet{});
+        VkWriteDescriptorSet& descriptorWrite = descriptorWrites.back();
+        descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrite.dstSet = m_set;
+        descriptorWrite.dstBinding = entry.binding;
+        descriptorWrite.dstArrayElement = 0;
+        descriptorWrite.descriptorType = type.value();
+        descriptorWrite.descriptorCount = static_cast<uint32_t>(tlasHandles.size());
         descriptorWrite.pBufferInfo = nullptr;
         descriptorWrite.pImageInfo = nullptr;
         descriptorWrite.pTexelBufferView = nullptr;

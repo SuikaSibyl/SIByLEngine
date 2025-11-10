@@ -147,22 +147,22 @@ float nee_uniform_pdf(ilight::sample_li_pdf_in i) {
     return pdf * 1.0f / max_light_id;
 }
 
-float nee_lbvh_pdf(ilight::sample_li_pdf_in ctx, uint factors) {
+float nee_lbvh_pdf(ilight::sample_li_pdf_in ctx, uint factors, uint lbvhID = 0) {
     float pmf = 1;
     int nodeIndex = 0;
     bounds3 allb = scene_read_scene_info().light_bounds();
     // Initialize local variables for BVH traversal for PMF computation
-    uint32_t bitTrail = se_lightbvh_trails[ctx.lightID];
+    uint32_t bitTrail = scene_read_lbvh_trail(lbvhID, ctx.lightID);
     // Compute light’s PMF by walking down tree nodes to the light
     while (true) {
-        LightBVHNode node = se_lightbvh_nodes[nodeIndex];
+        LightBVHNode node = scene_read_lbvh_node(lbvhID, nodeIndex);
         if (node.is_leaf()) {
             LightData data = scene_read_light(ctx.lightID);
             return pmf * nee_given_light_pdf(ctx, data);
         }
         // Compute child importances and update PMF for current node
-        LightBVHNode child0 = se_lightbvh_nodes[nodeIndex + 1];
-        LightBVHNode child1 = se_lightbvh_nodes[node.child_or_light_index()];
+        LightBVHNode child0 = scene_read_lbvh_node(lbvhID, nodeIndex + 1);
+        LightBVHNode child1 = scene_read_lbvh_node(lbvhID, node.child_or_light_index());
         float ci[2] = { child0.importance(ctx.ref_point, ctx.ref_normal, allb, factors),
                         child1.importance(ctx.ref_point, ctx.ref_normal, allb, factors) };
         pmf *= ci[bitTrail & 1] / (ci[0] + ci[1]);
@@ -173,22 +173,22 @@ float nee_lbvh_pdf(ilight::sample_li_pdf_in ctx, uint factors) {
     }
 }
 
-float4 nee_lbvh_pdf_with_per_channel_pdf(ilight::sample_li_pdf_in ctx, uint factors) {
+float4 nee_lbvh_pdf_with_per_channel_pdf(ilight::sample_li_pdf_in ctx, uint factors, uint lbvhID = 0) {
     int nodeIndex = 0;
     float4 pmf = { 1, 1, 1, 1 };
     bounds3 allb = scene_read_scene_info().light_bounds();
     // Initialize local variables for BVH traversal for PMF computation
-    uint32_t bitTrail = se_lightbvh_trails[ctx.lightID];
+    uint32_t bitTrail = scene_read_lbvh_trail(lbvhID, ctx.lightID);
     // Compute light’s PMF by walking down tree nodes to the light
     while (true) {
-        LightBVHNode node = se_lightbvh_nodes[nodeIndex];
+        LightBVHNode node = scene_read_lbvh_node(lbvhID, nodeIndex);
         if (node.is_leaf()) {
             LightData data = scene_read_light(ctx.lightID);
             return pmf * nee_given_light_pdf(ctx, data);
         }
         // Compute child importances and update PMF for current node
-        LightBVHNode child0 = se_lightbvh_nodes[nodeIndex + 1];
-        LightBVHNode child1 = se_lightbvh_nodes[node.child_or_light_index()];
+        LightBVHNode child0 = scene_read_lbvh_node(lbvhID, nodeIndex + 1);
+        LightBVHNode child1 = scene_read_lbvh_node(lbvhID, node.child_or_light_index());
 
         float4 ci[2];
         ci[0] = child0.importance_with_per_channel_pdf(ctx.ref_point, ctx.ref_normal, allb, factors);
@@ -203,18 +203,18 @@ float4 nee_lbvh_pdf_with_per_channel_pdf(ilight::sample_li_pdf_in ctx, uint fact
     }
 }
 
-Optional<ilight::sample_li_out> nee_lbvh(ilight::sample_li_in i, float u, uint factors) {
+Optional<ilight::sample_li_out> nee_lbvh(ilight::sample_li_in i, float u, uint factors, uint lbvhID = 0) {
     int nodeIndex = 0;
     float pmf = 1;
     bounds3 allb = scene_read_scene_info().light_bounds();
     while (true) {
     // Process light BVH node for light sampling
-    LightBVHNode node = se_lightbvh_nodes[nodeIndex];
+    LightBVHNode node = scene_read_lbvh_node(lbvhID, nodeIndex);
     if (!node.is_leaf()) {
         // Compute light BVH child node importances
         LightBVHNode children[2] = {
-            se_lightbvh_nodes[nodeIndex + 1],
-            se_lightbvh_nodes[node.child_or_light_index()]
+            scene_read_lbvh_node(lbvhID, nodeIndex + 1),
+            scene_read_lbvh_node(lbvhID, node.child_or_light_index())
         };
         float ci[2] = { children[0].importance(i.p, i.ns, allb, factors),
                         children[1].importance(i.p, i.ns, allb, factors) };
@@ -243,19 +243,19 @@ Optional<ilight::sample_li_out> nee_lbvh(ilight::sample_li_in i, float u, uint f
     }
 }
 
-Optional<ilight::sample_li_out> nee_lbvh_with_perchannel_pdf(ilight::sample_li_in i, float u, uint factors, out float3 pdf) {
+Optional<ilight::sample_li_out> nee_lbvh_with_perchannel_pdf(ilight::sample_li_in i, float u, uint factors, out float3 pdf, uint lbvhID = 0) {
     pdf = { 0, 0, 0 };
     int nodeIndex = 0;
     float4 pmf = { 1, 1, 1, 1 };
     bounds3 allb = scene_read_scene_info().light_bounds();
     while (true) {
     // Process light BVH node for light sampling
-    LightBVHNode node = se_lightbvh_nodes[nodeIndex];
+    LightBVHNode node = scene_read_lbvh_node(lbvhID, nodeIndex);
     if (!node.is_leaf()) {
         // Compute light BVH child node importances
         LightBVHNode children[2] = {
-            se_lightbvh_nodes[nodeIndex + 1],
-            se_lightbvh_nodes[node.child_or_light_index()]
+            scene_read_lbvh_node(lbvhID, nodeIndex + 1),
+            scene_read_lbvh_node(lbvhID, node.child_or_light_index())
         };
 
         float4 ci[2];

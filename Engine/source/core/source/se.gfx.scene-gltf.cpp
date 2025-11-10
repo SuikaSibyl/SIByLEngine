@@ -1038,6 +1038,10 @@ namespace se {
         false); // write binary
     }
 
+    auto SceneBatch::emplace_scene(SceneHandle scene) noexcept -> void {
+      m_scenes.emplace_back(scene);
+    }
+
     SceneLoader::result_type SceneLoader::operator()(SceneLoader::from_gltf_tag, std::string const& path) {
       SceneLoader::result_type scene = std::make_shared<Scene>();
       scene->load_gltf(path);
@@ -1092,6 +1096,11 @@ namespace se {
       ret.first->second->m_name = name;
       ret.first->second->m_filepath = path;
       return SceneHandle{ ret.first->second };
+    }
+    
+    auto GFXContext::create_scene_batch() noexcept -> SceneBatchHandle {
+      SceneBatchHandle handle = std::make_shared<SceneBatch>();
+      return handle;
     }
 
     auto GFXContext::frame_end() noexcept -> void {
