@@ -878,6 +878,7 @@ NB_MODULE(pycore, m) {
     .def("update_scripts", [](se::gfx::SceneHandle& self) { return self->update_scripts(); })
     .def("update_transform", [](se::gfx::SceneHandle& self) { return self->update_transform(); })
     .def("update_gpu_scene", [](se::gfx::SceneHandle& self) { return self->update_gpu_scene(); })
+    .def("set_viewport_size", [](se::gfx::SceneHandle& self, se::ivec2 size) { return self->set_viewport_size(size); })
     .def("load_gltf", [](se::gfx::SceneHandle& self, std::string const& path) { return self->load_gltf(path); })
     .def("gpu_scene", [](se::gfx::SceneHandle& self) { return self->gpu_scene(); }, nb::rv_policy::reference)
     .def("draw_meshes", [](se::gfx::SceneHandle& self, se::rhi::RenderPassEncoder* encoder, int32_t geometryIDOffset)

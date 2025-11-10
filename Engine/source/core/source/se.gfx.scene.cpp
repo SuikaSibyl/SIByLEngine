@@ -23,6 +23,10 @@ namespace se {
       return node;
     }
 
+    auto Scene::set_viewport_size(ivec2 size) noexcept -> void {
+      m_viewportSize = size;
+    }
+    
     auto Scene::reset() noexcept -> void {
       m_registry = ex::registry{};
       m_roots.clear();

@@ -88,7 +88,7 @@ int main() {
 
 	// build the scene
 	PROFILE_SCOPE_NAME(InitScene);
-	gfx::SceneHandle scene = gfx::GFXContext::load_scene_gltf("../scenes/matball/scene.gltf");
+	gfx::SceneHandle scene = gfx::GFXContext::load_scene_gltf("/home/haolin/Projects/neural_variance_reduction/example-di/data/room.glb");
 	editor::EditorContext::set_scene_display(scene);
 	editor::EditorContext::set_graph_display(foo_graph.get());
 	scene->update_gpu_scene();

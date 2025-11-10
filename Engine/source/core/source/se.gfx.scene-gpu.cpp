@@ -232,6 +232,13 @@ namespace gfx {
         }
       }
 
+      if(m_viewportSize.has_value()) {
+        float aspect_ratio = float(m_viewportSize.value().x) / float(m_viewportSize.value().y);
+        if (aspect_ratio != camera.aspectRatio) {
+          camera.aspectRatio = aspect_ratio;
+        }
+      }
+
       if (transform.is_dirty_to_gpu() || camera.is_dirty_to_gpu()) {
         CameraData camData = CameraData(camera, transform);
 

@@ -1116,6 +1116,7 @@ namespace gfx {
     std::string m_name;
     std::string m_filepath;
     se::timer m_timer;
+    std::optional<ivec2> m_viewportSize;
 
     struct IndexInfo {
       int32_t assignedIndex;
@@ -1216,6 +1217,7 @@ namespace gfx {
     auto update_gpu_bvh() noexcept -> void;
 
     auto draw_meshes(rhi::RenderPassEncoder*, int32_t geometryIDOffset = 0) noexcept -> void;
+    auto set_viewport_size(ivec2 size) noexcept -> void;
 
     auto gpu_scene() noexcept -> GPUScene* { return &m_gpuScene; }
     auto create_node(std::string const& name = "nameless") noexcept -> Node;

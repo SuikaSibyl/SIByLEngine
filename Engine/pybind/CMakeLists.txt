@@ -98,3 +98,5 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
         "${PY_EXT}"
     COMMENT "Running post-build script to copy .${PY_EXT} files"
 )
+
+add_subdirectory(oqmc)

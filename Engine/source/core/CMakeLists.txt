@@ -20,6 +20,7 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
     spirv-reflect
     tinymitsuba
     libdeflate::libdeflate_static
+    OpenQMC::OpenQMC
 )
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
@@ -81,4 +82,5 @@ target_sources(${PROJECT_NAME} PRIVATE
     "addon/bxdf-rgl/se.bxdf.rglbrdf.cpp" 
     "addon/pass-editor/ex.pass.editor.cpp" 
     "source/se.gfx.scene-pbrt.cpp" 
-    "source/ex.tinyprbrtloader.cpp")
+    "source/ex.tinyprbrtloader.cpp"
+    "source/ex.openqmc.cpp")

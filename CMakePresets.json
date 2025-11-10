@@ -12,7 +12,7 @@
       "description": "Use arbitrary Python path",
       "binaryDir": "${sourceDir}/Binaries/${presetName}",
       "cacheVariables": {
-        "Python_EXECUTABLE": "REPLACE_WITH_WINDOWS_PATH_TO_PYTHON\\Anaconda\\envs\\sibyl\\python.exe",
+        "Python_EXECUTABLE": "/home/haolin/.conda/envs/torch28/bin/python",
         "CMAKE_BUILD_TYPE": "Release",
         "CMAKE_GENERATOR_PLATFORM": "x64"
       }
@@ -24,7 +24,7 @@
       "description": "Use arbitrary Python path",
       "binaryDir": "${sourceDir}/Binaries/${presetName}",
       "cacheVariables": {
-        "Python_EXECUTABLE": "REPLACE_WITH_WINDOWS_PATH_TO_PYTHON\\Anaconda\\envs\\sibyl\\python.exe",
+        "Python_EXECUTABLE": "/home/haolin/.conda/envs/torch28/bin/python",
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_GENERATOR_PLATFORM": "x64"
       }
@@ -60,7 +60,7 @@
       "description": "Use arbitrary Python path",
       "binaryDir": "${sourceDir}/Binaries/${presetName}",
       "cacheVariables": {
-        "Python_EXECUTABLE": "/REPLACE_WITH_LINUX_PATH_TO_PYTHON/anaconda3/envs/sibyl/bin/python",
+        "Python_EXECUTABLE": "/home/haolin/.conda/envs/torch28/bin/python",
         "CMAKE_BUILD_TYPE": "Release"
       }
     },
@@ -71,7 +71,7 @@
       "description": "Use arbitrary Python path",
       "binaryDir": "${sourceDir}/Binaries/${presetName}",
       "cacheVariables": {
-        "Python_EXECUTABLE": "/REPLACE_WITH_LINUX_PATH_TO_PYTHON/anaconda3/envs/sibyl/bin/python",
+        "Python_EXECUTABLE": "/home/haolin/.conda/envs/torch28/bin/python",
         "CMAKE_BUILD_TYPE": "Debug"
       }
     }
