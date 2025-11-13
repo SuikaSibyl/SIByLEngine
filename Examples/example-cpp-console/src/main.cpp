@@ -18,17 +18,22 @@ int main() {
     se::rhi::Device* device = se::gfx::GFXContext::device();
 
     // create a scene batch
-    se::gfx::SceneBatchHandle sceneBatch = se::gfx::GFXContext::create_scene_batch();
+    {
+        se::gfx::SceneBatchHandle sceneBatch = se::gfx::GFXContext::create_scene_batch();
 
-    for (int i = 0; i < 2; ++i) {
-      se::gfx::SceneHandle scene = se::gfx::GFXContext::load_scene_gltf(
-        "/home/haolin/Projects/neural_variance_reduction/example-di/data/grid_di_0.glb");
-      sceneBatch->emplace_scene(scene);
+        auto scene_names = std::vector<std::string>{
+            "/home/haolin/Projects/neural_variance_reduction/example-di/data/grid_di_0.glb",
+            "/home/haolin/Projects/neural_variance_reduction/example-di/data/grid_di_1.glb",
+            "/home/haolin/Projects/neural_variance_reduction/example-di/data/grid_di_2.glb",
+            "/home/haolin/Projects/neural_variance_reduction/example-di/data/grid_di_3.glb",
+        };
+        for (int i = 0; i < 3; ++i) {
+        se::gfx::SceneHandle scene = se::gfx::GFXContext::load_scene_gltf(scene_names[i]);
+        sceneBatch->emplace_scene(scene);
+        }
+
+        sceneBatch->update_gpu_scene_batch();
     }
-
-    sceneBatch->update_gpu_scene_batch();
-
-    sceneBatch = nullptr;
 	se::gfx::GFXContext::finalize();
     return 0;
 }

@@ -34,27 +34,33 @@ namespace gfx {
   }
 
   auto Scene::update_gpu_scene() noexcept -> void {
+    // update scene transforms
     update_transform();
     
+    // update scene meshes
     update_gpu_meshes(&m_gpuScene);
     m_gpuScene.positionBuffer.m_buffer->host_to_device();
     m_gpuScene.indexBuffer.m_buffer->host_to_device();
     m_gpuScene.vertexBuffer.m_buffer->host_to_device();
     m_gpuScene.materialBuffer.m_buffer->host_to_device();
     
+    // update scene cameras
     update_gpu_camera(&m_gpuScene);
     m_gpuScene.cameraBuffer.m_buffer->host_to_device();
 
+    // update scene lights
     update_gpu_lights(&m_gpuScene);
     m_gpuScene.lightBuffer.m_buffer->host_to_device();
     m_gpuScene.sceneDataList.m_buffer->host_to_device();
     m_gpuScene.lbvhTreeBuffer.m_buffer->host_to_device();
     m_gpuScene.lbvhTrailBuffer.m_buffer->host_to_device();
      
+    // update scene mediums
     update_gpu_medium(&m_gpuScene);
     m_gpuScene.mediumPool.medium_buffer.m_buffer->host_to_device();
     m_gpuScene.mediumPool.grid_storage_buffer->host_to_device();
 
+    // update scene BVH
     update_gpu_bvh(&m_gpuScene);
 
     // set all transform dirty flag to false
@@ -63,6 +69,7 @@ namespace gfx {
       _transform.m_dirtyToGPU = false;
     }
 
+    m_gpuScene.sceneDataList.m_buffer->host_to_device();
     m_gpuScene.geometryBuffer.m_buffer->host_to_device();
   }
 
@@ -133,8 +140,8 @@ namespace gfx {
 
       // Then we update the geometry,
       if (transform.is_dirty_to_gpu() || mesh.is_dirty_to_gpu()) {
-
-        auto iter = gpu_scene->geometryList.find(entity);
+        SceneEntity entity_index = { this, entity };
+        auto iter = gpu_scene->geometryList.find(entity_index);
 
         std::vector<IndexInfo> info_set;
 
@@ -213,7 +220,7 @@ namespace gfx {
         }
 
         if (iter == gpu_scene->geometryList.end()) {
-          gpu_scene->geometryList[entity] = info_set;
+          gpu_scene->geometryList[entity_index] = info_set;
         }
 
         mesh.m_dirtyToGPU = false;
@@ -296,7 +303,8 @@ namespace gfx {
       switch (light.light.light_type) {
       case LightTypeEnum::MESH_PRIMITIVE: {
         MeshHandle& mesh = m_registry.get<MeshRenderer>(entity).m_mesh;
-        std::vector<IndexInfo>& indices = gpu_scene->geometryList[entity];
+        SceneEntity entity_index = { this, entity };
+        std::vector<IndexInfo>& indices = gpu_scene->geometryList[entity_index];
         // custom mesh primitives
         if (mesh->m_customPrimitives.size() > 0) {
           for (size_t i = 0; i < mesh->m_customPrimitives.size(); ++i) {
@@ -353,7 +361,8 @@ namespace gfx {
 
             int light_index = gpu_scene->lightBuffer.insert(packet);
             geometry.lightID = light_index;
-            gpu_scene->lightList[entity].push_back({ light_index });
+            SceneEntity entity_index = { this, entity };
+            gpu_scene->lightList[entity_index].push_back({ light_index });
           }
         }
         // triangle mesh primitives
@@ -406,7 +415,8 @@ namespace gfx {
 
             int light_index = gpu_scene->lightBuffer.insert_consecutive(packets);
             geometry.lightID = light_index;
-            gpu_scene->lightList[entity].push_back({ light_index, 0, int32_t(packets.size()) });
+            SceneEntity entity_index = { this, entity };
+            gpu_scene->lightList[entity_index].push_back({ light_index, 0, int32_t(packets.size()) });
           }
         }
         break;
@@ -419,7 +429,7 @@ namespace gfx {
     }
 
     if (lights_dirty) {
-      update_gpu_lightbvh();
+      update_gpu_lightbvh(gpu_scene);
 
       int32_t scene_index = -1;
       auto iter = gpu_scene->m_sceneIDMap.find(this);
@@ -461,7 +471,7 @@ namespace gfx {
       return;
 
     bool should_rebuilt_tlas = false;
-
+    size_t geometry_count = 0;
     auto node_view = m_registry.view<Transform, MeshRenderer>();
     for (auto [entity, transform, mesh] : node_view.each()) {
       if (mesh.m_mesh->m_customPrimitives.size() > 0) {
@@ -478,6 +488,7 @@ namespace gfx {
               });
             primitive.primBlas = GFXContext::device()->create_blas(primitive.blasDesc);
           }
+          geometry_count++;
         }
       }
       else {
@@ -500,6 +511,7 @@ namespace gfx {
               0 });
             primitive.primBlas = GFXContext::device()->create_blas(primitive.blasDesc);
           }
+          geometry_count++;
         }
       }
 
@@ -586,6 +598,9 @@ namespace gfx {
     else {
       scene_index = iter->second;
     }
+    gpu_scene->sceneDataList[scene_index].geometry_offset = uint32_t(gpu_scene->m_globalGeometryOffset);
+    gpu_scene->sceneDataList.m_buffer->m_hostStamp++;
+    gpu_scene->m_globalGeometryOffset += geometry_count;
     // upload tlas to gpu_scene
     if(gpu_scene->tlasList.size() <= scene_index)
       gpu_scene->tlasList.resize(scene_index + 1);
@@ -867,8 +882,9 @@ namespace gfx {
       for (auto [entity, _transform] : node_view.each()) {
         _transform.m_dirtyToGPU = false;
       }
-    }
+    } 
 
+    m_gpuSceneBatch.sceneDataList.m_buffer->host_to_device();
     m_gpuSceneBatch.geometryBuffer.m_buffer->host_to_device();
   }
 }

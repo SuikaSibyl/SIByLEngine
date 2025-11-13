@@ -226,7 +226,9 @@ struct SceneData {
     float3 lightBoundsMax;
     int distantLightCount;
     int environmentLightID;
-    int padding;
+    int geometryOffset;
+    int padding0;
+    int padding1;
 
     bounds3 light_bounds() { return bounds3(lightBoundsMin, lightBoundsMax); }
 };

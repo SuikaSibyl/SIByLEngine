@@ -875,7 +875,7 @@ NB_MODULE(pycore, m) {
     .def("binding_resource_medium_grid", &se::gfx::Scene::GPUScene::binding_resource_medium_grid)
     .def("binding_resource_camera", &se::gfx::Scene::GPUScene::binding_resource_camera);
 
-  nb::class_<se::gfx::SceneBatch>(gfx_scene, "SceneBatch")
+  nb::class_<se::gfx::SceneBatch>(ns_gfx, "SceneBatch")
     .def("emplace_scene", &se::gfx::SceneBatch::emplace_scene)
     .def("update_gpu_scene_batch", &se::gfx::SceneBatch::update_gpu_scene_batch)
     .def("gpu_scene", [](se::gfx::SceneBatch& self) { return self.gpu_scene(); }, nb::rv_policy::reference);
@@ -1015,6 +1015,8 @@ NB_MODULE(pycore, m) {
    nb::class_<se::rdg::ComputePass, se::rdg::PipelinePass, se::rdg::PyComputePass<>>(ns_rdg, "ComputePass")
      .def(nb::init<>())
      .def(nb::init<std::string const&>())
+     .def(nb::init<std::string const&,
+        std::vector<std::pair<char const*, char const*>> const&>())
      .def("reflect", &se::rdg::ComputePass::reflect)
      .def("execute", &se::rdg::ComputePass::execute)
      .def("update_binding_scene", &se::rdg::RenderPass::update_binding_scene)

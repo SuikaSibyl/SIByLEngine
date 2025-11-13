@@ -74,7 +74,7 @@ extension IntersectionPayload {
      * @param u: random sample in [0, 1]^2
      * @return Optional containing the sampled light information, or none if sampling failed.
      */
-    Optional<ilight::sample_li_out> light_sample(Ray ri, float3 u) {
+    Optional<ilight::sample_li_out> light_sample(Ray ri, float3 u, uint sceneID = 0) {
         Frame shading_frame = hit.get_shading_frame();
         ilight::sample_li_in nee_i;
         nee_i.p = hit.position;
@@ -83,7 +83,7 @@ extension IntersectionPayload {
         return lights::nee_lbvh(nee_i, u.z,
             int(ImportanceFacotr::Use_Power 
               | ImportanceFacotr::Use_Distance 
-              | ImportanceFacotr::Use_Cone));
+              | ImportanceFacotr::Use_Cone), sceneID);
     }
 
     float light_pdf(IntersectionPayload next_payload) {

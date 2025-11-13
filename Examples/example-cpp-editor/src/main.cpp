@@ -10,42 +10,6 @@
 
 using namespace se;
 
-struct BarPass : public se::rdg::RenderPass {
-	// initialize pass, by defining the shader
-	BarPass() { init("./shaders/editor/geometry-viewer.slang"); }
-
-	virtual auto reflect(rdg::PassReflection& reflector) noexcept -> se::rdg::PassReflection {
-		reflector.add_output("Color").is_texture()
-			.with_format(se::rhi::TextureFormat::RGBA32_FLOAT)
-			.consume_as_color_attachment_at(0);
-		reflector.add_output("Depth").is_texture()
-			.with_format(se::rhi::TextureFormat::DEPTH32_FLOAT)
-			.consume_as_depth_stencil_attachment_at(0);
-		return reflector;
-	}
-
-	virtual auto execute(
-		se::rdg::RenderContext* rdrCtx,
-		se::rdg::RenderData const& rdrDat
-	) noexcept -> void {
-		set_render_pass_descriptor({
-			{se::rhi::RenderPassColorAttachment{rdrDat.get_texture("Color")->get_rtv(0, 0, 1),
-				{0, 0, 0, 1}, se::rhi::LoadOp::CLEAR, se::rhi::StoreOp::STORE}},
-			se::rhi::RenderPassDepthStencilAttachment{ rdrDat.get_texture("Depth")->get_dsv(0, 0, 1),
-				1, rhi::LoadOp::CLEAR, rhi::StoreOp::STORE, false,
-				0, rhi::LoadOp::DONT_CARE, rhi::StoreOp::DONT_CARE, false,
-			}
-		});
-
-		auto scene = rdrDat.get_scene();
-		update_binding_scene(rdrCtx, scene);
-
-		auto encoder = begin_pass(rdrCtx, rdrDat.get_texture("Color").get());
-		scene->draw_meshes(encoder);
-		encoder->end();
-	}
-};
-
 struct FooGraph: public rdg::Graph {
 	InspectorPass foo_pass;
 	SecondaryInspectorPass sec_pass;
@@ -82,7 +46,7 @@ int main() {
 	// build the render graph
 	PROFILE_SCOPE_NAME(InitRenderGraph);
 	std::unique_ptr<FooGraph> foo_graph = std::make_unique<FooGraph>();
-	foo_graph->m_standardSize = { 1024,1024,1 };
+	foo_graph->m_standardSize = { 512,512,1 };
 	foo_graph->build();
 	PROFILE_SCOPE_STOP(InitRenderGraph);
 
@@ -90,11 +54,20 @@ int main() {
 	PROFILE_SCOPE_NAME(InitScene);
 
 	gfx::SceneBatchHandle sceneBatch = gfx::GFXContext::create_scene_batch();
-	gfx::SceneHandle scene = gfx::GFXContext::load_scene_gltf("/home/haolin/Projects/neural_variance_reduction/example-di/data/grid_di_0.glb");
+	
+	std::vector<std::string> scene_names = {
+		"/home/haolin/Projects/vvmc/scenes/livingroom3/scene.xml",
+		"/home/haolin/Projects/neural_variance_reduction/example-di/data/grid_di_1.glb",
+		"/home/haolin/Projects/neural_variance_reduction/example-di/data/grid_di_2.glb",
+		"/home/haolin/Projects/neural_variance_reduction/example-di/data/grid_di_3.glb",
+	};
+	gfx::SceneHandle scene = gfx::GFXContext::load_scene_xml(scene_names[0]);
+	scene->set_viewport_size({ 256, 256 });
 	editor::EditorContext::set_scene_display(scene);
 	editor::EditorContext::set_graph_display(foo_graph.get());
-	sceneBatch->emplace_scene(scene);
-	sceneBatch->update_gpu_scene_batch();
+	scene->update_gpu_scene();
+	
+	// sceneBatch->update_gpu_scene_batch();
 	// scene->update_gpu_scene();
 	PROFILE_SCOPE_STOP(InitScene);
 
@@ -121,7 +94,7 @@ int main() {
 		std::unique_ptr<se::rhi::CommandEncoder> encoder = device->
 			create_command_encoder(se::gfx::GFXContext::get_flights()->get_command_buffer());
 
-		foo_graph->m_renderData.set_scene_batch(sceneBatch);
+		foo_graph->m_renderData.set_scene(scene);
 		foo_graph->execute(encoder.get());
 
 		auto output = foo_graph->get_output();

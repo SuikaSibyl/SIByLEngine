@@ -477,19 +477,25 @@ namespace impl {
     size_t alignment) noexcept -> void {
     freeAll();
 
-    dataSize = data_size;
-    pageSize = page_size;
+    dataSize      = data_size;
+    pageSize      = page_size;
+    alignmentSize = alignment;
 
-    size_t minimal_size =
-      (sizeof(BlockHeader) > dataSize) ? sizeof(BlockHeader) : dataSize;
-    // this magic only works when alignment is 2^n, which should general be the
-    // case because most CPU/GPU also requires the aligment be in 2^n but still we
-    // use a assert to guarantee it
-    blockSize = ALIGN(minimal_size, alignment);
+    // Block must at least satisfy BlockHeader alignment
+    size_t align = std::max(alignmentSize, alignof(BlockHeader));
 
-    alignmentSize = blockSize - minimal_size;
+    // Size of one block = header + data, rounded up to required alignment
+    blockSize = ALIGN(sizeof(BlockHeader) + dataSize,
+                std::max(alignmentSize, alignof(BlockHeader)));
 
-    blocksPerPage = uint32_t((pageSize - sizeof(PageHeader)) / blockSize);
+
+    // Number of blocks that fit in a page *after* the PageHeader
+    size_t usable = pageSize - sizeof(PageHeader);
+    blocksPerPage = static_cast<uint32_t>(usable / blockSize);
+
+    // Basic sanity checks to catch configuration errors early
+    assert(blocksPerPage > 0 && "page too small for even one block");
+    assert((blockSize % alignof(BlockHeader)) == 0);
   }
 
   auto Allocator::allocate() noexcept -> void* {

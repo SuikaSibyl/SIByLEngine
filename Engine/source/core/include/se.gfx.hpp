@@ -1182,13 +1182,13 @@ namespace gfx {
       std::unordered_map<SceneEntity, IndexInfo, SceneEntityHash> cameraList;
 
       DynamicVectorBufferView<GeometryDrawData> geometryBuffer;
-      std::unordered_map<ex::entity, std::vector<IndexInfo>> geometryList;
+      std::unordered_map<SceneEntity, std::vector<IndexInfo>, SceneEntityHash> geometryList;
 
       DynamicVectorBufferView<Material::MaterialPacket> materialBuffer;
       std::unordered_map<gfx::Material*, IndexInfo> materialList;
 
       DynamicVectorBufferView<LightData> lightBuffer;
-      std::unordered_map<ex::entity, std::vector<IndexInfo>> lightList;
+      std::unordered_map<SceneEntity, std::vector<IndexInfo>, SceneEntityHash> lightList;
 
       DynamicVectorBufferView<uint64_t> lbvhTreeBuffer;
       DynamicVectorBufferView<uint64_t> lbvhTrailBuffer;
@@ -1217,9 +1217,12 @@ namespace gfx {
         vec3 light_bounds_max;
         int distant_light_count = 0;
         int environment_map = -1;
-        int padding = 0;
+        int geometry_offset = -1;
+        int padding_0 = -1;
+        int padding_1 = -1;
       };
 
+      uint32_t m_globalGeometryOffset = 0;
       DynamicVectorBufferView<SceneData> sceneDataList;
       std::vector<rhi::TLAS*> tlasList;
       std::unordered_map<Scene*, int> m_sceneIDMap;
@@ -1242,6 +1245,10 @@ namespace gfx {
     } m_gpuScene;
     
     Scene();
+    Scene(Scene const& other) = delete;
+    Scene(Scene&& other) noexcept = default;
+    Scene& operator=(Scene const& other) = delete;
+    Scene& operator=(Scene&& other) noexcept = default;
     
     auto update_scripts() noexcept -> void;
     auto update_transform() noexcept -> void;
@@ -1250,7 +1257,7 @@ namespace gfx {
     auto update_gpu_camera(GPUScene* gpu_scene) noexcept -> void;
     auto update_gpu_lights(GPUScene* gpu_scene) noexcept -> void;
     auto update_gpu_medium(GPUScene* gpu_scene) noexcept -> void;
-    auto update_gpu_lightbvh() noexcept -> void;
+    auto update_gpu_lightbvh(GPUScene* gpu_scene) noexcept -> void;
     auto update_gpu_bvh(GPUScene* gpu_scene) noexcept -> void;
 
     auto draw_meshes(rhi::RenderPassEncoder*, int32_t geometryIDOffset = 0) noexcept -> void;
@@ -1277,6 +1284,10 @@ namespace gfx {
     Scene::GPUScene m_gpuSceneBatch;
     
     SceneBatch() { reset(); }
+    SceneBatch(SceneBatch const& other) = delete;
+    SceneBatch(SceneBatch&& other) noexcept = default;
+    SceneBatch& operator=(SceneBatch const& other) = delete;
+    SceneBatch& operator=(SceneBatch&& other) noexcept = default;
     auto reset() noexcept -> void;
     auto emplace_scene(SceneHandle scene) noexcept -> void;
     auto update_gpu_scene_batch() noexcept -> void;

@@ -47,7 +47,7 @@ MinimalHit intersection_ray_query_minimal(Ray ray, uint bvhID = 0) {
         case CANDIDATE_PROCEDURAL_PRIMITIVE: {
             const uint primitiveType = q.CandidateInstanceID();
             const uint primitiveID = q.CandidatePrimitiveIndex();
-            const uint geometryID = q.CandidateInstanceIndex() + q.CandidateGeometryIndex();
+            const uint geometryID = q.CandidateInstanceIndex() + q.CandidateGeometryIndex() + scene_read_scene_info(bvhID).geometryOffset;
             GeometryData geometry = scene_read_geometry(geometryID);
             // sphere primitive
             if (primitiveType == 1) {
@@ -81,7 +81,7 @@ MinimalHit intersection_ray_query_minimal(Ray ray, uint bvhID = 0) {
     case COMMITTED_TRIANGLE_HIT: {
         // Do hit shading
         const uint primitiveID = q.CommittedPrimitiveIndex();
-        const uint geometryID = q.CommittedInstanceIndex() + q.CommittedGeometryIndex();
+        const uint geometryID = q.CommittedInstanceIndex() + q.CommittedGeometryIndex() + scene_read_scene_info(bvhID).geometryOffset;
         const float2 bary = q.CommittedTriangleBarycentrics();
         
         payload.primitiveType = 0; // Triangle
@@ -93,7 +93,7 @@ MinimalHit intersection_ray_query_minimal(Ray ray, uint bvhID = 0) {
     case COMMITTED_PROCEDURAL_PRIMITIVE_HIT: {
         const uint primitiveType = q.CommittedInstanceID();
         const uint primitiveID = q.CommittedPrimitiveIndex();
-        const uint geometryID = q.CommittedInstanceIndex() + q.CommittedGeometryIndex();
+        const uint geometryID = q.CommittedInstanceIndex() + q.CommittedGeometryIndex() + scene_read_scene_info(bvhID).geometryOffset;
         payload.primitiveType = primitiveType; // Triangle
         payload.primitiveID = primitiveID;
         payload.geometryID = geometryID;
@@ -122,7 +122,7 @@ IntersectionPayload intersection_ray_query(Ray ray, uint bvhID = 0) {
         case CANDIDATE_PROCEDURAL_PRIMITIVE: {
             const uint primitiveType = q.CandidateInstanceID();
             const uint primitiveID = q.CandidatePrimitiveIndex();
-            const uint geometryID = q.CandidateInstanceIndex() + q.CandidateGeometryIndex();
+            const uint geometryID = q.CandidateInstanceIndex() + q.CandidateGeometryIndex() + scene_read_scene_info(bvhID).geometryOffset;
             GeometryData geometry = scene_read_geometry(geometryID);
             // sphere primitive
             if (primitiveType == 1) {
@@ -156,7 +156,7 @@ IntersectionPayload intersection_ray_query(Ray ray, uint bvhID = 0) {
     case COMMITTED_TRIANGLE_HIT: {
         // Do hit shading
         const uint primitiveID = q.CommittedPrimitiveIndex();
-        const uint geometryID = q.CommittedInstanceIndex() + q.CommittedGeometryIndex();
+        const uint geometryID = q.CommittedInstanceIndex() + q.CommittedGeometryIndex() + scene_read_scene_info(bvhID).geometryOffset;
         const float2 bary = q.CommittedTriangleBarycentrics();
         const float3 barycentrics = float3(1 - bary.x - bary.y, bary.x, bary.y);
         payload.hit = fetch_trimesh_geometry_hit(geometryID, barycentrics, primitiveID, ray);
@@ -166,7 +166,7 @@ IntersectionPayload intersection_ray_query(Ray ray, uint bvhID = 0) {
     case COMMITTED_PROCEDURAL_PRIMITIVE_HIT: {
         const uint primitiveType = q.CommittedInstanceID();
         const uint primitiveID = q.CommittedPrimitiveIndex();
-        const uint geometryID = q.CommittedInstanceIndex() + q.CommittedGeometryIndex();
+        const uint geometryID = q.CommittedInstanceIndex() + q.CommittedGeometryIndex() + scene_read_scene_info(bvhID).geometryOffset;
         GeometryData geometry = scene_read_geometry(geometryID);
         if (primitiveType == 1) {
             payload.hit = fetch_sphere_geometry_hit(geometry, ray, q.CommittedRayT());
@@ -211,7 +211,7 @@ bool visibility_ray_query(in const Ray ray, uint bvhID = 0) {
         case CANDIDATE_PROCEDURAL_PRIMITIVE: {
             const uint primitiveType = q.CandidateInstanceID();
             const uint primitiveID = q.CandidatePrimitiveIndex();
-            const uint geometryID = q.CandidateInstanceIndex() + q.CandidateGeometryIndex();
+            const uint geometryID = q.CandidateInstanceIndex() + q.CandidateGeometryIndex() + scene_read_scene_info(bvhID).geometryOffset;
             GeometryData geometry = scene_read_geometry(geometryID);
             // sphere primitive
             if (primitiveType == 1) {

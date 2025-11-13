@@ -765,6 +765,10 @@ namespace rdg {
       {}, false)[0];
     init(m_computeShader->get());
   }
+  
+  ComputePass::ComputePass(std::string const& shader_path, std::vector<std::pair<char const*, char const*>> const& macros) {
+    init(shader_path, macros);
+  }
 
   auto ComputePass::begin_pass(rdg::RenderContext* context) noexcept -> rhi::ComputePassEncoder* {
     m_passEncoders[context->flightIdx] = context->cmdEncoder->begin_compute_pass();

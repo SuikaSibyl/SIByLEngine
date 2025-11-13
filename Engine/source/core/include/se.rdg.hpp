@@ -307,6 +307,7 @@ namespace rdg {
   struct ComputePass : public PipelinePass {
     ComputePass() = default;
     ComputePass(std::string const& shader_path);
+    ComputePass(std::string const& shader_path, std::vector<std::pair<char const*, char const*>> const& macros);
     virtual ~ComputePass() = default;
     std::unique_ptr<rhi::ComputePipeline> m_pipeline;
     std::array<std::unique_ptr<rhi::ComputePassEncoder>, SE_FRAME_FLIGHTS_COUNT> m_passEncoders;

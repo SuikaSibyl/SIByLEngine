@@ -26,7 +26,7 @@ struct InspectorPass : public rdg::ComputePass {
 	} m_helper;
 
 	// initialize pass, by defining the shader
-	InspectorPass() { init("./shaders/editor/geometry-viewer-rt.slang"); }
+	InspectorPass();
 
 	virtual auto reflect(rdg::PassReflection& reflector) noexcept -> rdg::PassReflection;
 

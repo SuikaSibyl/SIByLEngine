@@ -1,6 +1,9 @@
 #ifndef _SRENDERER_SCENE_BINDINGS_
 #define _SRENDERER_SCENE_BINDINGS_
+
+#ifndef SRENDERER_SCENE_TLAS_COUNT
 #define SRENDERER_SCENE_TLAS_COUNT 1
+#endif
 
 #include "common/ray.slang"
 #include "common/math.slang"
@@ -179,7 +182,7 @@ GeometryHit fetch_trimesh_geometry_hit(
 
 LightData scene_read_light(int lightID) { return se_light_buffer[lightID]; }
 
-SceneData scene_read_scene_info() { return se_scene_buffer[0]; }
+SceneData scene_read_scene_info(int sceneID) { return se_scene_buffer[sceneID]; }
 
 Sampler2D scene_read_texture(int textureID) { return se_textures[textureID]; }
 

@@ -336,9 +336,9 @@ namespace gfx {
     Singleton<GFXContext>::instance()->m_samplers.clear();
     Singleton<GFXContext>::instance()->m_shaders.clear();
     Singleton<GFXContext>::instance()->m_meshs.clear();
-    Singleton<GFXContext>::instance()->m_buffers.clear();
     Singleton<GFXContext>::instance()->m_materials.clear();
     Singleton<GFXContext>::instance()->m_mediums.clear();
+    Singleton<GFXContext>::instance()->m_buffers.clear();
     // release the base objects
     Singleton<GFXContext>::instance()->m_flights = nullptr;
     Singleton<GFXContext>::instance()->m_adapter = nullptr;

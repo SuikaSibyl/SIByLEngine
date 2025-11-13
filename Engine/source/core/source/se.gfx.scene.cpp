@@ -167,7 +167,7 @@ namespace se {
         for (auto& index_info : iter.second) {
           int geometryID = index_info.assignedIndex;
           if (geometryID == index) {
-            Node node = { iter.first, &m_registry };
+            Node node = { iter.first.entity, &m_registry };
             std::function<void()> fn = std::bind(&draw_scene_node, this, node, nullptr);
             se::editor::EditorContext::set_inspector_callback(fn);
           } 

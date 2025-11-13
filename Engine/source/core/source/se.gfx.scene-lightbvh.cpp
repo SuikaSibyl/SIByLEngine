@@ -388,7 +388,7 @@ namespace gfx{
     return 1;
   }
 
-  auto Scene::update_gpu_lightbvh() noexcept -> void {
+  auto Scene::update_gpu_lightbvh(GPUScene* gpu_scene) noexcept -> void {
     if (m_perSceneGPUInfo.lightSampler.sampler == nullptr) {
       m_perSceneGPUInfo.lightSampler.sampler = std::make_unique<BVHLightSampler>();
     }
@@ -397,12 +397,14 @@ namespace gfx{
     sampler->allLightBounds.pMax = vec3(-1e9);
 
     std::vector<std::pair<int, LightBounds>> bvhLights;
-    for (auto& entity_lights : m_gpuScene.lightList) {
+    for (auto& entity_lights : gpu_scene->lightList) {
+      if (entity_lights.first.scene != this)
+        continue;
       for (auto& lights_index : entity_lights.second) {
         for (size_t i = 0; i < lights_index.length; ++i) {
           int32_t index = i + lights_index.assignedIndex;
           // Store th light in either infiniteLights or bvhLights
-          LightData light = m_gpuScene.lightBuffer[index];
+          LightData light = gpu_scene->lightBuffer[index];
           // handle light bounds
           LightBounds lb;
           lb.bounds = { light.floatvec_1.xyz(), light.floatvec_2.xyz() };

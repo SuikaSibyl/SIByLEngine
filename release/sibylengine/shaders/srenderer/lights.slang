@@ -127,8 +127,8 @@ float nee_given_light_pdf(ilight::sample_li_pdf_in i, LightData data) {
     return 0.f;
 }
 
-Optional<ilight::sample_li_out> nee_uniform(ilight::sample_li_in i, float u) {
-    int max_light_id = scene_read_scene_info().nonDistantLightCount;
+Optional<ilight::sample_li_out> nee_uniform(ilight::sample_li_in i, float u, uint sceneID) {
+    int max_light_id = scene_read_scene_info(sceneID).nonDistantLightCount;
     const int light_id = clamp(int(u * max_light_id), 0, max_light_id - 1);
     LightData data = scene_read_light(light_id);
     if (let o = nee_given_light(i, data)) {
@@ -140,8 +140,8 @@ Optional<ilight::sample_li_out> nee_uniform(ilight::sample_li_in i, float u) {
     return none;
 }
 
-float nee_uniform_pdf(ilight::sample_li_pdf_in i) {
-    int max_light_id = scene_read_scene_info().nonDistantLightCount;
+float nee_uniform_pdf(ilight::sample_li_pdf_in i, uint lbvhID) {
+    int max_light_id = scene_read_scene_info(lbvhID).nonDistantLightCount;
     LightData data = scene_read_light(i.lightID);
     float pdf = nee_given_light_pdf(i, data);
     return pdf * 1.0f / max_light_id;
@@ -150,7 +150,7 @@ float nee_uniform_pdf(ilight::sample_li_pdf_in i) {
 float nee_lbvh_pdf(ilight::sample_li_pdf_in ctx, uint factors, uint lbvhID = 0) {
     float pmf = 1;
     int nodeIndex = 0;
-    bounds3 allb = scene_read_scene_info().light_bounds();
+    bounds3 allb = scene_read_scene_info(lbvhID).light_bounds();
     // Initialize local variables for BVH traversal for PMF computation
     uint32_t bitTrail = scene_read_lbvh_trail(lbvhID, ctx.lightID);
     // Compute light’s PMF by walking down tree nodes to the light
@@ -176,7 +176,7 @@ float nee_lbvh_pdf(ilight::sample_li_pdf_in ctx, uint factors, uint lbvhID = 0) 
 float4 nee_lbvh_pdf_with_per_channel_pdf(ilight::sample_li_pdf_in ctx, uint factors, uint lbvhID = 0) {
     int nodeIndex = 0;
     float4 pmf = { 1, 1, 1, 1 };
-    bounds3 allb = scene_read_scene_info().light_bounds();
+    bounds3 allb = scene_read_scene_info(lbvhID).light_bounds();
     // Initialize local variables for BVH traversal for PMF computation
     uint32_t bitTrail = scene_read_lbvh_trail(lbvhID, ctx.lightID);
     // Compute light’s PMF by walking down tree nodes to the light
@@ -206,7 +206,7 @@ float4 nee_lbvh_pdf_with_per_channel_pdf(ilight::sample_li_pdf_in ctx, uint fact
 Optional<ilight::sample_li_out> nee_lbvh(ilight::sample_li_in i, float u, uint factors, uint lbvhID = 0) {
     int nodeIndex = 0;
     float pmf = 1;
-    bounds3 allb = scene_read_scene_info().light_bounds();
+    bounds3 allb = scene_read_scene_info(lbvhID).light_bounds();
     while (true) {
     // Process light BVH node for light sampling
     LightBVHNode node = scene_read_lbvh_node(lbvhID, nodeIndex);
@@ -247,7 +247,7 @@ Optional<ilight::sample_li_out> nee_lbvh_with_perchannel_pdf(ilight::sample_li_i
     pdf = { 0, 0, 0 };
     int nodeIndex = 0;
     float4 pmf = { 1, 1, 1, 1 };
-    bounds3 allb = scene_read_scene_info().light_bounds();
+    bounds3 allb = scene_read_scene_info(lbvhID).light_bounds();
     while (true) {
     // Process light BVH node for light sampling
     LightBVHNode node = scene_read_lbvh_node(lbvhID, nodeIndex);

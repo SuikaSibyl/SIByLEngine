@@ -1,5 +1,8 @@
 #pragma once
 #include <vulkan/vulkan.hpp>
+#define VMA_DEBUG_MARGIN 16
+#define VMA_DEBUG_DETECT_CORRUPTION 1
+#define VMA_DEBUG_INITIALIZE_ALLOCATIONS 1
 #include <vma/vk_mem_alloc.h>
 #include <memory>
 #include <optional>
