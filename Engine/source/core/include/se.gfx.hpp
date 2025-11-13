@@ -218,8 +218,8 @@ namespace gfx {
         m_freeList.pop();
       } else {
         idx = m_size++;
-        if (idx * sizeof(T) >= m_buffer->m_host.size())
-          m_buffer->m_host.resize(std::max(size_t(4) * sizeof(T), m_buffer->m_host.size() * 2));
+        if ((idx + 1) * sizeof(T) > m_buffer->m_host.size())
+          m_buffer->m_host.resize(std::max(size_t(4) * sizeof(T), (m_size - 1) * sizeof(T) * 2));
       }
       std::memcpy(&m_buffer->m_host[idx * sizeof(T)], &value, sizeof(T));
       return idx;
@@ -1218,7 +1218,7 @@ namespace gfx {
         int distant_light_count = 0;
         int environment_map = -1;
         int geometry_offset = -1;
-        int padding_0 = -1;
+        int light_offset = -1;
         int padding_1 = -1;
       };
 
@@ -1226,6 +1226,7 @@ namespace gfx {
       DynamicVectorBufferView<SceneData> sceneDataList;
       std::vector<rhi::TLAS*> tlasList;
       std::unordered_map<Scene*, int> m_sceneIDMap;
+      bool forceUpdate = false;
 
       auto reset() noexcept -> void;
       auto binding_resource_position() noexcept -> rhi::BindingResource;
@@ -1257,7 +1258,7 @@ namespace gfx {
     auto update_gpu_camera(GPUScene* gpu_scene) noexcept -> void;
     auto update_gpu_lights(GPUScene* gpu_scene) noexcept -> void;
     auto update_gpu_medium(GPUScene* gpu_scene) noexcept -> void;
-    auto update_gpu_lightbvh(GPUScene* gpu_scene) noexcept -> void;
+    auto update_gpu_lightbvh(GPUScene* gpu_scene, int light_offset) noexcept -> void;
     auto update_gpu_bvh(GPUScene* gpu_scene) noexcept -> void;
 
     auto draw_meshes(rhi::RenderPassEncoder*, int32_t geometryIDOffset = 0) noexcept -> void;
@@ -1274,6 +1275,7 @@ namespace gfx {
     auto draw_gui(editor::IFragment* fragment = nullptr) noexcept -> void;
     auto open_node_with_geometry_index(int32_t index) noexcept -> void;
     auto reset() noexcept -> void;
+    auto invalid_gpu_resources() noexcept -> void;
     auto save(std::string const& path) noexcept -> void;
   };
   // The handle of texture
@@ -1343,8 +1345,12 @@ namespace gfx {
 
     static auto clean_cache() noexcept -> void;
     static auto clean_buffer_cache() noexcept -> void;
+    static auto clean_scene_cache() noexcept -> void;
     static auto clean_texture_cache() noexcept -> void;
     static auto clean_shader_cache() noexcept -> void;
+    static auto clean_material_cache() noexcept -> void;
+    static auto clean_mesh_cache() noexcept -> void;
+    static auto clean_medium_cache() noexcept -> void;
 
     // create buffer resource
     // -------------------------------------------

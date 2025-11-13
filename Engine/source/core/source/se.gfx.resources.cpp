@@ -2527,7 +2527,13 @@ namespace gfx {
   }
 
   auto GFXContext::clean_cache() noexcept -> void {
+    clean_scene_cache();
     clean_texture_cache();
+    clean_buffer_cache();
+    clean_shader_cache();
+    clean_material_cache();
+    clean_mesh_cache();
+    clean_medium_cache();
   }
 
   auto GFXContext::clean_buffer_cache() noexcept -> void {
@@ -2543,7 +2549,63 @@ namespace gfx {
       }
     }
   }
-  
+
+  auto GFXContext::clean_scene_cache() noexcept -> void {
+    auto& scenes = Singleton<GFXContext>::instance()->m_scenes;
+    for (auto it = scenes.begin(); it != scenes.end(); ) {
+      if (it->second.handle().use_count() <= 2) {
+        it->second->m_countDown--;
+        if (it->second->m_countDown < -5)
+          it = scenes.erase(it); // erase returns the next iterator
+      }
+      else {
+        ++it;
+      }
+    }
+  }
+
+  auto GFXContext::clean_material_cache() noexcept -> void {
+    auto& materials = Singleton<GFXContext>::instance()->m_materials;
+    for (auto it = materials.begin(); it != materials.end(); ) {
+      if (it->second.handle().use_count() <= 2) {
+        it->second->m_countDown--;
+        if (it->second->m_countDown < -5)
+          it = materials.erase(it); // erase returns the next iterator
+      }
+      else {
+        ++it;
+      }
+    }
+  }
+
+  auto GFXContext::clean_mesh_cache() noexcept -> void {
+    auto& meshs = Singleton<GFXContext>::instance()->m_meshs;
+    for (auto it = meshs.begin(); it != meshs.end(); ) {
+      if (it->second.handle().use_count() <= 2) {
+        it->second->m_countDown--;
+        if (it->second->m_countDown < -5)
+          it = meshs.erase(it); // erase returns the next iterator
+      }
+      else {
+        ++it;
+      }
+    }
+  }
+
+  auto GFXContext::clean_medium_cache() noexcept -> void {
+    auto& mediums = Singleton<GFXContext>::instance()->m_mediums;
+    for (auto it = mediums.begin(); it != mediums.end(); ) {
+      if (it->second.handle().use_count() <= 2) {
+        it->second->m_countDown--;
+        if (it->second->m_countDown < -5)
+          it = mediums.erase(it); // erase returns the next iterator
+      }
+      else {
+        ++it;
+      }
+    }
+  }
+
   auto GFXContext::clean_texture_cache() noexcept -> void {
     auto& textures = Singleton<GFXContext>::instance()->m_textures;
     for (auto it = textures.begin(); it != textures.end(); ) {

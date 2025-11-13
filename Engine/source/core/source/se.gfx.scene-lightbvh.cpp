@@ -388,7 +388,7 @@ namespace gfx{
     return 1;
   }
 
-  auto Scene::update_gpu_lightbvh(GPUScene* gpu_scene) noexcept -> void {
+  auto Scene::update_gpu_lightbvh(GPUScene* gpu_scene, int light_offset) noexcept -> void {
     if (m_perSceneGPUInfo.lightSampler.sampler == nullptr) {
       m_perSceneGPUInfo.lightSampler.sampler = std::make_unique<BVHLightSampler>();
     }
@@ -416,7 +416,7 @@ namespace gfx{
           lb.twoSided = false;
 
           if (lb.phi > 0) {
-            bvhLights.push_back(std::make_pair(index, lb));
+            bvhLights.push_back(std::make_pair(index - light_offset, lb));
             sampler->allLightBounds = union_bounds(sampler->allLightBounds, lb.bounds);
           }
         }

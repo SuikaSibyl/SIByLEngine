@@ -39,6 +39,11 @@ namespace se {
       m_timer.update();
     }
 
+    auto Scene::invalid_gpu_resources() noexcept -> void {
+      m_perSceneGPUInfo.reset();
+      m_gpuScene.reset();
+    }
+
     auto draw_scene_node(gfx::Scene* scene, gfx::Node node, editor::IFragment* fragment) {
       NodeProperty* _property = node.get_component<NodeProperty>();
       gfx::ComponentManager::draw_all_components(node);

@@ -78,7 +78,7 @@ namespace gfx {
     auto node_view = m_registry.view<Transform, MeshRenderer>();
     for (auto [entity, transform, mesh] : node_view.each()) {
       // If the mesh resource itself is dirty, we update the reference to the mesh
-      if (mesh.m_mesh->m_dirtyToGPU) {
+      if (mesh.m_mesh->m_dirtyToGPU || gpu_scene->forceUpdate) {
         uint64_t vertex_address = mesh.m_mesh->m_vertexBuffer->m_buffer->get_device_address();
         uint64_t pos_address = mesh.m_mesh->m_positionBuffer->m_buffer->get_device_address();
         uint64_t index_address = mesh.m_mesh->m_indexBuffer->m_buffer->get_device_address();
@@ -139,7 +139,7 @@ namespace gfx {
       }
 
       // Then we update the geometry,
-      if (transform.is_dirty_to_gpu() || mesh.is_dirty_to_gpu()) {
+      if (transform.is_dirty_to_gpu() || mesh.is_dirty_to_gpu() || gpu_scene->forceUpdate) {
         SceneEntity entity_index = { this, entity };
         auto iter = gpu_scene->geometryList.find(entity_index);
 
@@ -259,7 +259,7 @@ namespace gfx {
         }
       }
 
-      if (transform.is_dirty_to_gpu() || camera.is_dirty_to_gpu()) {
+      if (transform.is_dirty_to_gpu() || camera.is_dirty_to_gpu() || gpu_scene->forceUpdate) {
         CameraData camData = CameraData(camera, transform);
 
         if (camera.medium.get() != nullptr) {
@@ -295,10 +295,11 @@ namespace gfx {
   auto Scene::update_gpu_lights(GPUScene* gpu_scene) noexcept -> void {
     auto node_light_view = m_registry.view<gfx::Transform, Light>();
     bool lights_dirty = false;
+    const int light_offset = gpu_scene->lightList.size();
 
     for (auto [entity, transform, light] : node_light_view.each()) {
       // Skip if neither transform nor light is dirty
-      if ((!transform.is_dirty_to_gpu()) && (!light.is_dirty_to_gpu())) continue;
+      if ((!transform.is_dirty_to_gpu()) && (!light.is_dirty_to_gpu()) && (!gpu_scene->forceUpdate)) continue;
 
       switch (light.light.light_type) {
       case LightTypeEnum::MESH_PRIMITIVE: {
@@ -429,7 +430,8 @@ namespace gfx {
     }
 
     if (lights_dirty) {
-      update_gpu_lightbvh(gpu_scene);
+      update_gpu_lightbvh(gpu_scene, light_offset);
+
 
       int32_t scene_index = -1;
       auto iter = gpu_scene->m_sceneIDMap.find(this);
@@ -439,6 +441,7 @@ namespace gfx {
         data.nondistant_light_count = gpu_scene->lightBuffer.m_size;
         data.light_bounds_min = m_perSceneGPUInfo.lightSampler.allLightBounds.pMin;
         data.light_bounds_max = m_perSceneGPUInfo.lightSampler.allLightBounds.pMax;
+        data.light_offset = light_offset;
         // push data to gpu buffer
         scene_index = gpu_scene->sceneDataList.insert(data);
         gpu_scene->m_sceneIDMap[this] = scene_index;
@@ -450,6 +453,7 @@ namespace gfx {
         data.nondistant_light_count = gpu_scene->lightBuffer.m_size;
         data.light_bounds_min = m_perSceneGPUInfo.lightSampler.allLightBounds.pMin;
         data.light_bounds_max = m_perSceneGPUInfo.lightSampler.allLightBounds.pMax;
+        data.light_offset = light_offset;
       }
 
       // upload lbvh to gpu_scene
@@ -769,6 +773,10 @@ namespace gfx {
     sceneDataList.m_buffer->m_job = "Scene info buffer";
     sceneDataList.m_buffer->m_usages = rhi::BufferUsageEnum::STORAGE;
     sceneDataList.m_buffer->m_memoryCopyMode = gfx::Buffer::MemoryCopyMode::COHERENT_MAPPING;
+  
+    m_globalGeometryOffset = 0;
+    tlasList.clear();
+    m_sceneIDMap.clear();
   }
 
   auto Scene::GPUScene::binding_resource_position() noexcept -> rhi::BindingResource {
@@ -841,6 +849,8 @@ namespace gfx {
   }
 
   auto SceneBatch::update_gpu_scene_batch() noexcept -> void {
+    m_gpuSceneBatch.forceUpdate = true;
+
     // update scene transforms
     for (auto& scene_handle : m_scenes) 
       scene_handle->update_transform();
