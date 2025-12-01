@@ -227,7 +227,7 @@ struct SceneData {
     int distantLightCount;
     int environmentLightID;
     int geometryOffset;
-    int padding0;
+    int lightOffset;
     int padding1;
 
     bounds3 light_bounds() { return bounds3(lightBoundsMin, lightBoundsMax); }

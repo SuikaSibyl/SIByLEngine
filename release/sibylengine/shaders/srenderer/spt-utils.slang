@@ -86,7 +86,7 @@ extension IntersectionPayload {
               | ImportanceFacotr::Use_Cone), sceneID);
     }
 
-    float light_pdf(IntersectionPayload next_payload) {
+    float light_pdf(IntersectionPayload next_payload, uint sceneID = 0) {
         GeometryData next_geometry = scene_read_geometry(next_payload.hit.geometryID);        
         float nee_pdf = 0.f;
         int lightID = next_geometry.lightID;
@@ -101,11 +101,30 @@ extension IntersectionPayload {
             nee_pdf = lights::nee_lbvh_pdf(nee_pdf_i,
                   (uint)ImportanceFacotr::Use_Power
                 | (uint)ImportanceFacotr::Use_Distance
-                | (uint)ImportanceFacotr::Use_Cone);
+                | (uint)ImportanceFacotr::Use_Cone, sceneID);
         }
         return nee_pdf;
     }
-
+    
+    float4 light_per_channel_pdf(IntersectionPayload next_payload, uint sceneID = 0) {
+        GeometryData next_geometry = scene_read_geometry(next_payload.hit.geometryID);
+        float4 nee_pdf = 0.f;
+        int lightID = next_geometry.lightID;
+        if (lightID >= 0) {
+            lightID += next_payload.hit.primitiveID;
+            ilight::sample_li_pdf_in nee_pdf_i;
+            nee_pdf_i.lightID = lightID;
+            nee_pdf_i.ref_point = hit.position;
+            nee_pdf_i.ref_normal = hit.geometryNormal;
+            nee_pdf_i.light_point = next_payload.hit.position;
+            nee_pdf_i.light_normal = next_payload.hit.geometryNormal;
+            nee_pdf = lights::nee_lbvh_pdf_with_per_channel_pdf(nee_pdf_i,
+                (uint)ImportanceFacotr::Use_Power
+                | (uint)ImportanceFacotr::Use_Distance
+                | (uint)ImportanceFacotr::Use_Cone, sceneID);
+        }
+        return nee_pdf;
+    }
 
     /**
      * Sample the BSDF at the intersection point.
@@ -138,7 +157,7 @@ extension IntersectionPayload {
      * @param cv: output per-channel pdf
      * @return Optional containing the sampled light information, or none if sampling failed.
      */
-    Optional<ilight::sample_li_out> light_sample_with_perchannel_pdf(Ray ri, float3 u, out float3 cv) {
+    Optional<ilight::sample_li_out> light_sample_with_perchannel_pdf(Ray ri, float3 u, out float3 cv, int sceneID = 0) {
         Frame shading_frame = hit.get_shading_frame();
         ilight::sample_li_in nee_i;
         nee_i.p = hit.position;
@@ -147,7 +166,7 @@ extension IntersectionPayload {
         return lights::nee_lbvh_with_perchannel_pdf(nee_i, u.z,
             int(ImportanceFacotr::Use_Power 
               | ImportanceFacotr::Use_Distance 
-              | ImportanceFacotr::Use_Cone), cv);
+              | ImportanceFacotr::Use_Cone), cv, sceneID);
     }
 
     /**
@@ -171,7 +190,7 @@ extension IntersectionPayload {
  * @param cv: output per-channel pdf
  * @return Optional containing the sampled light information, or none if sampling failed.
  */
-Optional<ilight::sample_li_out> light_sample_with_perchannel_pdf(float3 position, Ray ri, float3 u, out float3 cv) {
+Optional<ilight::sample_li_out> light_sample_with_perchannel_pdf(float3 position, Ray ri, float3 u, out float3 cv, uint sceneID = 0) {
     ilight::sample_li_in nee_i;
     nee_i.p = position;
     nee_i.ns = float3(0, 0, 0);
@@ -179,7 +198,7 @@ Optional<ilight::sample_li_out> light_sample_with_perchannel_pdf(float3 position
     return lights::nee_lbvh_with_perchannel_pdf(nee_i, u.z,
             int(ImportanceFacotr::Use_Power 
               | ImportanceFacotr::Use_Distance 
-              | ImportanceFacotr::Use_Cone), cv);
+              | ImportanceFacotr::Use_Cone), cv, sceneID);
 }
 
 struct light_sample_ctx {

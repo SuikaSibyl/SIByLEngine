@@ -1352,6 +1352,8 @@ namespace gfx {
     static auto clean_mesh_cache() noexcept -> void;
     static auto clean_medium_cache() noexcept -> void;
 
+    static auto number_of_cached_buffers() noexcept -> size_t;
+
     // create buffer resource
     // -------------------------------------------
     static auto create_buffer_empty(

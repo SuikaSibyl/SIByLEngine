@@ -129,7 +129,8 @@ float nee_given_light_pdf(ilight::sample_li_pdf_in i, LightData data) {
 
 Optional<ilight::sample_li_out> nee_uniform(ilight::sample_li_in i, float u, uint sceneID) {
     int max_light_id = scene_read_scene_info(sceneID).nonDistantLightCount;
-    const int light_id = clamp(int(u * max_light_id), 0, max_light_id - 1);
+    int scene_light_offset = scene_read_scene_info(sceneID).lightOffset;
+    const int light_id = clamp(int(u * max_light_id), 0, max_light_id - 1) + scene_light_offset;
     LightData data = scene_read_light(light_id);
     if (let o = nee_given_light(i, data)) {
         ilight::sample_li_out lo = o;
@@ -151,8 +152,9 @@ float nee_lbvh_pdf(ilight::sample_li_pdf_in ctx, uint factors, uint lbvhID = 0) 
     float pmf = 1;
     int nodeIndex = 0;
     bounds3 allb = scene_read_scene_info(lbvhID).light_bounds();
+    int offsetLightID = ctx.lightID - scene_read_scene_info(lbvhID).lightOffset;
     // Initialize local variables for BVH traversal for PMF computation
-    uint32_t bitTrail = scene_read_lbvh_trail(lbvhID, ctx.lightID);
+    uint32_t bitTrail = scene_read_lbvh_trail(lbvhID, offsetLightID);
     // Compute light’s PMF by walking down tree nodes to the light
     while (true) {
         LightBVHNode node = scene_read_lbvh_node(lbvhID, nodeIndex);
@@ -177,8 +179,9 @@ float4 nee_lbvh_pdf_with_per_channel_pdf(ilight::sample_li_pdf_in ctx, uint fact
     int nodeIndex = 0;
     float4 pmf = { 1, 1, 1, 1 };
     bounds3 allb = scene_read_scene_info(lbvhID).light_bounds();
+    int offsetLightID = ctx.lightID - scene_read_scene_info(lbvhID).lightOffset;
     // Initialize local variables for BVH traversal for PMF computation
-    uint32_t bitTrail = scene_read_lbvh_trail(lbvhID, ctx.lightID);
+    uint32_t bitTrail = scene_read_lbvh_trail(lbvhID, offsetLightID);
     // Compute light’s PMF by walking down tree nodes to the light
     while (true) {
         LightBVHNode node = scene_read_lbvh_node(lbvhID, nodeIndex);
@@ -230,11 +233,14 @@ Optional<ilight::sample_li_out> nee_lbvh(ilight::sample_li_in i, float u, uint f
     else {
         // Confirm light has nonzero importance before returning light sample
         if (nodeIndex > 0 || node.importance(i.p, i.ns, allb) > 0) {
-            LightData data = scene_read_light(node.child_or_light_index());
+            int light_index = node.child_or_light_index();
+            int scene_light_offset = scene_read_scene_info(lbvhID).lightOffset;
+            light_index += scene_light_offset;
+            LightData data = scene_read_light(light_index);
             if (let o = nee_given_light(i, data)) {
                 ilight::sample_li_out lo = o;
                 lo.pdf *= pmf;
-                lo.lightID = node.child_or_light_index();
+                lo.lightID = light_index;
                 return lo;
             }
         }
@@ -278,12 +284,16 @@ Optional<ilight::sample_li_out> nee_lbvh_with_perchannel_pdf(ilight::sample_li_i
     else {
         // Confirm light has nonzero importance before returning light sample
         if (nodeIndex > 0 || node.importance(i.p, i.ns, allb) > 0) {
-            LightData data = scene_read_light(node.child_or_light_index());
+            int light_index = node.child_or_light_index();
+            int scene_light_offset = scene_read_scene_info(lbvhID).lightOffset;
+            light_index += scene_light_offset;
+            
+            LightData data = scene_read_light(light_index);
             if (let o = nee_given_light(i, data)) {
                 ilight::sample_li_out lo = o;
                 pdf = pmf.yzw * lo.pdf;
                 lo.pdf *= pmf.x;
-                lo.lightID = node.child_or_light_index();
+                lo.lightID = light_index;
                 return lo;
             }
         }

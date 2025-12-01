@@ -885,6 +885,7 @@ NB_MODULE(pycore, m) {
     .def("update_transform", [](se::gfx::SceneHandle& self) { return self->update_transform(); })
     .def("update_gpu_scene", [](se::gfx::SceneHandle& self) { return self->update_gpu_scene(); })
     .def("set_viewport_size", [](se::gfx::SceneHandle& self, se::ivec2 size) { return self->set_viewport_size(size); })
+    .def("invalid_gpu_resources", [](se::gfx::SceneHandle& self) { return self->invalid_gpu_resources(); })
     .def("load_gltf", [](se::gfx::SceneHandle& self, std::string const& path) { return self->load_gltf(path); })
     .def("gpu_scene", [](se::gfx::SceneHandle& self) { return self->gpu_scene(); }, nb::rv_policy::reference)
     .def("draw_meshes", [](se::gfx::SceneHandle& self, se::rhi::RenderPassEncoder* encoder, int32_t geometryIDOffset)
@@ -911,6 +912,7 @@ NB_MODULE(pycore, m) {
     .def_static("create_scene_batch", &se::gfx::GFXContext::create_scene_batch)
     .def_static("clean_texture_cache", &se::gfx::GFXContext::clean_texture_cache)
     .def_static("clean_cache", &se::gfx::GFXContext::clean_cache)
+    .def_static("number_of_cached_buffers", &se::gfx::GFXContext::number_of_cached_buffers)
     .def_static("frame_end", &se::gfx::GFXContext::frame_end)
     .def_static("finalize", &se::gfx::GFXContext::finalize);
 
@@ -989,6 +991,7 @@ NB_MODULE(pycore, m) {
     .def("reflect", &se::rdg::RenderPass::reflect)
     .def("execute", &se::rdg::RenderPass::execute)
     .def("update_bindings", &se::rdg::RenderPass::update_bindings)
+    .def("update_binding_scene", &se::rdg::RenderPass::update_binding_scene)
     .def("update_binding_scene_batch", &se::rdg::RenderPass::update_binding_scene_batch)
     .def("set_render_pass_descriptor", &se::rdg::RenderPass::set_render_pass_descriptor)
     .def("init", static_cast<void(se::rdg::RenderPass::*)(

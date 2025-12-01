@@ -17,7 +17,7 @@ int main() {
 	 | se::rhi::ContextExtensionEnum::RAY_TRACING));
 
     se::rhi::Device* device = se::gfx::GFXContext::device();
-    for (int i = 0; i < 1000; ++i) {
+    for (int i = 0; i < 5; ++i) {
       se::gfx::SceneBatchHandle sceneBatch = se::gfx::GFXContext::create_scene_batch();
 
       for (int j = 0; j < 4; ++j) {
@@ -29,7 +29,7 @@ int main() {
 
       sceneBatch->update_gpu_scene_batch();
       se::gfx::GFXContext::clean_cache();
-      const int buffer_size = se::Singleton<se::gfx::GFXContext>::instance()->m_buffers.size();
+      const int buffer_size = se::gfx::GFXContext::number_of_cached_buffers();
       const int scene_size = se::Singleton<se::gfx::GFXContext>::instance()->m_scenes.size();
       se::info("Number of cached buffers: " + std::to_string(buffer_size) + ", number of scenes: " + std::to_string(scene_size));
     }

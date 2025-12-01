@@ -2592,6 +2592,10 @@ namespace gfx {
     }
   }
 
+  auto GFXContext::number_of_cached_buffers() noexcept -> size_t {
+    return Singleton<GFXContext>::instance()->m_buffers.size();
+  }
+
   auto GFXContext::clean_medium_cache() noexcept -> void {
     auto& mediums = Singleton<GFXContext>::instance()->m_mediums;
     for (auto it = mediums.begin(); it != mediums.end(); ) {

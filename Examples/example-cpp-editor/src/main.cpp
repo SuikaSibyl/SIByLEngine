@@ -56,12 +56,12 @@ int main() {
 	gfx::SceneBatchHandle sceneBatch = gfx::GFXContext::create_scene_batch();
 	
 	std::vector<std::string> scene_names = {
-		"/home/haolin/Projects/vvmc/scenes/livingroom3/scene.xml",
-		"/home/haolin/Projects/neural_variance_reduction/example-di/data/grid_di_1.glb",
-		"/home/haolin/Projects/neural_variance_reduction/example-di/data/grid_di_2.glb",
-		"/home/haolin/Projects/neural_variance_reduction/example-di/data/grid_di_3.glb",
+		"//home/haolin/Projects/gilo/prt/_pretrain/buddha/scene/buddha-simple.gltf",
+		"/home/haolin/Projects/neural_variance_reduction/example-gi/data/grid_gi_1.glb",
+		"/home/haolin/Projects/neural_variance_reduction/example-gi/data/grid_gi_2.glb",
+		"/home/haolin/Projects/neural_variance_reduction/example-gi/data/grid_gi_3.glb",
 	};
-	gfx::SceneHandle scene = gfx::GFXContext::load_scene_xml(scene_names[0]);
+	gfx::SceneHandle scene = gfx::GFXContext::load_scene_gltf(scene_names[0]);
 	scene->set_viewport_size({ 256, 256 });
 	editor::EditorContext::set_scene_display(scene);
 	editor::EditorContext::set_graph_display(foo_graph.get());
