@@ -1,4 +1,4 @@
-# SIByLEngine 0.0.4
+# SIByLEngine 0.0.5
 
 `SIByLEngine` is a toy renderer framework based on `Vulkan`,
 designed for rapid prototyping of real-time and offline graphics algorithms requiring GPU acceleration.
@@ -23,7 +23,7 @@ conda activate sibyl
 pip install torch==2.4.0 torchvision==0.19.0 torchaudio==2.4.0 --index-url https://download.pytorch.org/whl/cu118
 
 # install sibylengine
-pip install sibylengine==0.0.4
+pip install sibylengine==0.0.5
 
 # install additional packages for examples
 pip install numpy==1.26.3

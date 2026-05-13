@@ -3,6 +3,7 @@
 
 #include "common/sampling.slang"
 #include "srenderer/materials/bxdf-microfacet.slang"
+#include "srenderer/spt-bindings.slang"
 #include "srenderer/spt-definition.slang"
 
 ///////////////////////////////////////////////////////////////////////////////////////////
@@ -32,6 +33,10 @@ struct PlasticMaterial : IBxDFParameter {
         Ks = mat.floatvec_2.xyz; // * sampleTexture(mat.albedo_tex, uv).rgb;
         alpha = mat.floatvec_1.w;
         eta = mat.floatvec_2.w;
+        if (mat.albedo_tex >= 0) {
+            Sampler2D albedo_tex = scene_read_texture(mat.albedo_tex);
+            Kd *= albedo_tex.Sample(uv).rgb;
+        }
     }
 };
 

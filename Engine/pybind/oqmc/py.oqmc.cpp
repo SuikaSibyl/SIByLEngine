@@ -25,7 +25,7 @@ auto generate_pmj_samples_dim3(
     nb::object arr = np.attr("empty")(nb::make_tuple(x1 - x0, y1 - y0, nSamples, 3), "float32");
     // cast the Python object to our typed ndarray view
     PatchSample3 out = nb::cast<PatchSample3>(arr);
-
+    
 	enum DomainKey { Next, };
 
     auto cache = new char[oqmc::PmjBnSampler::cacheSize];

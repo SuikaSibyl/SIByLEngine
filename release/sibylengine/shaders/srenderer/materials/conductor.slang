@@ -3,6 +3,7 @@
 
 #include "common/sampling.slang"
 #include "srenderer/materials/bxdf-microfacet.slang"
+#include "srenderer/spt-bindings.slang"
 #include "srenderer/spt-definition.slang"
 
 struct ConductorMaterial : IBxDFParameter {
